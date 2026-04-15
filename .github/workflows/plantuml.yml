@@ -1,18 +1,46 @@
 name: Render PlantUML
-on: [push, pull_request]
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - '**.puml'
+      - '**.plantuml'
+  pull_request:
+    paths:
+      - '**.puml'
+      - '**.plantuml'
+  workflow_dispatch: # Позволяет запускать вручную
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Нужно для пуша картинок обратно в репо
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Render diagrams
-        uses: holowinski/plantuml-github-action@main
-        with:
-          args: "-tsvg src/**/*.puml" # Генерировать SVG рядом с исходниками
-      - name: Commit images
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Render PlantUML files to SVG
+        run: |
+          # Находим все .puml файлы и генерируем рядом .svg
+          # -tsvg: формат вывода
+          # -o "%d/%f.svg": сохранить в ту же папку (%d) с тем же именем (%f)
+          docker run --rm -v ${{ github.workspace }}:/data plantuml/plantuml:latest -tsvg -o "%d/%f.svg" "/data/**/*.puml"
+
+      - name: Commit and push generated SVGs
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add src/**/*.svg
-          git commit -m "Auto-update diagrams" -a || exit 0
-          git push
+          
+          # Добавляем только новые/измененные svg файлы
+          git add "**/*.svg"
+          
+          # Если есть изменения - коммитим и пушим
+          if ! git diff --staged --quiet; then
+            git commit -m "ci: auto-generate PlantUML diagrams [skip ci]"
+            git push
+          else
+            echo "No changes to commit"
+          fi
