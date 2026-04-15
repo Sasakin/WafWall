@@ -1,0 +1,18 @@
+name: Render PlantUML
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Render diagrams
+        uses: holowinski/plantuml-github-action@main
+        with:
+          args: "-tsvg src/**/*.puml" # Генерировать SVG рядом с исходниками
+      - name: Commit images
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add src/**/*.svg
+          git commit -m "Auto-update diagrams" -a || exit 0
+          git push
