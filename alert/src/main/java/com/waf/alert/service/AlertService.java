@@ -1,0 +1,113 @@
+package com.waf.alert.service;
+
+import com.waf.common.model.Alert;
+import com.waf.common.model.ThreatType;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Service
+@Slf4j
+public class AlertService {
+
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final BlocklistService blocklistService;
+    private final TelegramNotificationService telegramService;
+    private final WebSocketAlertService webSocketService;
+
+    @Value("${alert.deduplication-window-seconds:300}")
+    private int deduplicationWindowSeconds;
+
+    @Value("${alert.auto-block-threshold:50}")
+    private int autoBlockThreshold;
+
+    private final Set<String> processedAlertIds = ConcurrentHashMap.newKeySet();
+    private final Map<String, AlertStats> alertStats = new ConcurrentHashMap<>();
+
+    public AlertService(
+            RedisTemplate<String, Object> redisTemplate,
+            BlocklistService blocklistService,
+            TelegramNotificationService telegramService,
+            WebSocketAlertService webSocketService) {
+        this.redisTemplate = redisTemplate;
+        this.blocklistService = blocklistService;
+        this.telegramService = telegramService;
+        this.webSocketService = webSocketService;
+    }
+
+    public void processAlert(Alert alert) {
+        if (isDuplicate(alert)) {
+            log.debug("Skipping duplicate alert: {}", alert.getAlertId());
+            return;
+        }
+
+        markAsProcessed(alert);
+
+        updateStats(alert);
+
+        if (alert.getThresholdExceeded() >= autoBlockThreshold) {
+            blocklistService.addToBlocklist(alert.getSourceIp(), "ALERT:" + alert.getThreatType());
+            log.warn("Auto-blocked IP {} due to {} threshold exceeded",
+                alert.getSourceIp(), alert.getThreatType());
+        }
+
+        telegramService.sendNotification(alert);
+        webSocketService.sendAlert(alert);
+        log.info("Alert processed: {} from {} with {} attempts",
+            alert.getThreatType(), alert.getSourceIp(), alert.getThresholdExceeded());
+    }
+
+    private boolean isDuplicate(Alert alert) {
+        return processedAlertIds.contains(alert.getAlertId());
+    }
+
+    private void markAsProcessed(Alert alert) {
+        processedAlertIds.add(alert.getAlertId());
+    }
+
+    private void updateStats(Alert alert) {
+        AlertStats stats = alertStats.computeIfAbsent(alert.getSourceIp(), k -> new AlertStats());
+        stats.addAlert(alert);
+    }
+
+    public Map<String, AlertStats> getAlertStats() {
+        return Map.copyOf(alertStats);
+    }
+
+    public void cleanup() {
+        long cutoff = Instant.now().toEpochMilli() - (deduplicationWindowSeconds * 1000L);
+        processedAlertIds.removeIf(id -> id.hashCode() < cutoff);
+    }
+
+    public static class AlertStats {
+        private int totalAlerts;
+        private int ddosAlerts;
+        private int bruteForceAlerts;
+        private Instant lastAlertTime;
+
+        public void addAlert(Alert alert) {
+            totalAlerts++;
+            lastAlertTime = Instant.now();
+
+            if (alert.getThreatType() == ThreatType.DDOS_PATTERN) {
+                ddosAlerts++;
+            } else if (alert.getThreatType() == ThreatType.RATE_LIMIT_EXCEEDED) {
+                bruteForceAlerts++;
+            }
+        }
+
+        public int getTotalAlerts() { return totalAlerts; }
+        public int getDdosAlerts() { return ddosAlerts; }
+        public int getBruteForceAlerts() { return bruteForceAlerts; }
+        public Instant getLastAlertTime() { return lastAlertTime; }
+    }
+}

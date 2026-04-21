@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'waf-gateway'
+    static_configs:
+      - targets: ['gateway:8080']
+        labels:
+          service: 'gateway'
+
+  - job_name: 'alert-service'
+    static_configs:
+      - targets: ['alert:8082']
+        labels:
+          service: 'alert'
+
+  - job_name: 'stream-processor'
+    static_configs:
+      - targets: ['processor:8081']
+        labels:
+          service: 'processor'

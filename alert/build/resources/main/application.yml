@@ -1,0 +1,44 @@
+server:
+  port: 8083
+  address: 0.0.0.0
+
+spring:
+  application:
+    name: alert-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: alert-service
+      auto-offset-reset: latest
+      enable-auto-commit: true
+
+telegram:
+  enabled: ${TELEGRAM_ENABLED:false}
+  bot-token: ${TELEGRAM_BOT_TOKEN:}
+  chat-id: ${TELEGRAM_CHAT_ID:}
+
+alert:
+  deduplication-window-seconds: 300
+  auto-block-threshold: 50
+
+blocklist:
+  default-ttl-seconds: 3600
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.waf: DEBUG
+    org.springframework: INFO

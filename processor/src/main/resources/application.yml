@@ -1,0 +1,48 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: stream-processor
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: stream-processor
+      auto-offset-reset: earliest
+      enable-auto-commit: true
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+
+clickhouse:
+  host: ${CLICKHOUSE_HOST:localhost}
+  port: ${CLICKHOUSE_PORT:8123}
+  database: ${CLICKHOUSE_DATABASE:security}
+  username: ${CLICKHOUSE_USERNAME:default}
+  password: ${CLICKHOUSE_PASSWORD:}
+
+processor:
+  batch-size: 100
+  batch-timeout-ms: 5000
+
+anomaly:
+  detection:
+    ddos-threshold: 50
+    brute-force-threshold: 10
+    new-threat-window-seconds: 300
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.waf: DEBUG
+    org.springframework: INFO
