@@ -40,7 +40,8 @@ public class HealthController {
         
         // Kafka check
         try {
-            if (kafkaTemplate != null) {
+            if (kafkaTemplate != null && kafkaTemplate.getProducerFactory() != null) {
+                kafkaTemplate.getProducerFactory().createProducer().partitionsFor("test");
                 components.put("kafka", "UP");
             } else {
                 components.put("kafka", "NOT_CONFIGURED");

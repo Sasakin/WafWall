@@ -3,6 +3,7 @@ package com.waf.gateway.service;
 import com.waf.common.model.ThreatType;
 import com.waf.gateway.filter.FilterResult;
 import com.waf.gateway.filter.SecurityFilter;
+import com.waf.gateway.util.IpUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Component;
 
@@ -22,7 +23,7 @@ public class RateLimitFilter implements SecurityFilter {
 
     @Override
     public FilterResult check(HttpServletRequest request) {
-        String clientIp = request.getRemoteAddr();
+        String clientIp = IpUtil.getClientIp(request);
         String path = request.getRequestURI();
 
         if (!rateLimitService.isAllowed(clientIp, path)) {

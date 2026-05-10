@@ -1,6 +1,7 @@
 package com.waf.gateway.filter;
 
 import com.waf.gateway.service.WafService;
+import com.waf.gateway.util.IpUtil;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -25,8 +26,14 @@ public class WafFilter implements Filter {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         HttpServletResponse httpResponse = (HttpServletResponse) response;
 
-        String clientIp = getClientIp(httpRequest);
         String path = httpRequest.getRequestURI();
+        
+        if (path.startsWith("/actuator") || path.startsWith("/metrics")) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        String clientIp = IpUtil.getClientIp(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
 
         wafService.processRequest(clientIp, path, userAgent, httpRequest, httpResponse);
@@ -37,13 +44,5 @@ public class WafFilter implements Filter {
             return;
         }
         chain.doFilter(request, response);
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isEmpty()) {
-            return xff.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 }

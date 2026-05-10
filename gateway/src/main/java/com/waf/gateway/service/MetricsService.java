@@ -71,9 +71,10 @@ public class MetricsService {
             .description("Rate limit exceeded")
             .register(registry);
 
-        // Latency
+        // Latency with histogram
         this.requestLatency = Timer.builder("waf_request_duration_seconds")
             .description("WAF request processing duration")
+            .publishPercentiles(0.5, 0.95, 0.99)
             .register(registry);
 
         // Gauge metrics

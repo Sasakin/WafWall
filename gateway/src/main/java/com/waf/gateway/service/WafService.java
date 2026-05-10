@@ -16,29 +16,39 @@ public class WafService {
 
     private final SecurityFilterChain filterChain;
     private final EventPublisher eventPublisher;
+    private final MetricsService metricsService;
 
-    public WafService(SecurityFilterChain filterChain, EventPublisher eventPublisher) {
+    public WafService(SecurityFilterChain filterChain, EventPublisher eventPublisher, MetricsService metricsService) {
         this.filterChain = filterChain;
         this.eventPublisher = eventPublisher;
+        this.metricsService = metricsService;
     }
 
     public void processRequest(String clientIp, String path, String userAgent,
                            HttpServletRequest request, HttpServletResponse response) {
         long startTime = System.currentTimeMillis();
+        
+        metricsService.recordRequest();
 
         FilterResult filterResult = filterChain.execute(request);
 
         if (filterResult.isBlocked()) {
+            long duration = System.currentTimeMillis() - startTime;
+            metricsService.recordLatency(duration);
             blockRequest(clientIp, path, userAgent, filterResult.getThreatType(), startTime, response);
             return;
         }
 
+        metricsService.recordAllowed();
+        long duration = System.currentTimeMillis() - startTime;
+        metricsService.recordLatency(duration);
         eventPublisher.publish(buildEvent(clientIp, path, userAgent, ThreatType.UNKNOWN, false, startTime));
     }
 
     private void blockRequest(String clientIp, String path, String userAgent,
                             ThreatType threatType, long startTime, HttpServletResponse response) {
         response.setStatus(403);
+        metricsService.recordBlocked(threatType.name());
         eventPublisher.publish(buildEvent(clientIp, path, userAgent, threatType, true, startTime));
     }
 

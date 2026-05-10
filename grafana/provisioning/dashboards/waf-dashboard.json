@@ -8,100 +8,101 @@
       {
         "id": 1,
         "title": "Total Requests (RPS)",
-        "type": "graph",
+        "type": "timeseries",
         "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
         "targets": [
           {
-            "expr": "rate(waf_requests_total[1m])",
-            "legendFormat": "RPS"
+            "expr": "rate(waf_requests_blocked_total[1m]) + rate(waf_requests_allowed_total[1m])",
+            "legendFormat": "Total RPS"
+          },
+          {
+            "expr": "rate(waf_requests_blocked_total[1m])",
+            "legendFormat": "Blocked RPS"
+          },
+          {
+            "expr": "rate(waf_requests_allowed_total[1m])",
+            "legendFormat": "Allowed RPS"
           }
         ]
       },
       {
         "id": 2,
-        "title": "Blocked Requests by Type",
-        "type": "graph",
+        "title": "Blocked vs Allowed",
+        "type": "timeseries",
         "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
         "targets": [
           {
-            "expr": "rate(waf_blocked_total{threat_type=\"sql_injection\"}[1m])",
-            "legendFormat": "SQL Injection"
+            "expr": "rate(waf_requests_blocked_total[1m])",
+            "legendFormat": "Blocked"
           },
           {
-            "expr": "rate(waf_blocked_total{threat_type=\"xss\"}[1m])",
-            "legendFormat": "XSS"
-          },
-          {
-            "expr": "rate(waf_blocked_total{threat_type=\"bot\"}[1m])",
-            "legendFormat": "Bot"
-          },
-          {
-            "expr": "rate(waf_blocked_total{threat_type=\"rate_limit\"}[1m])",
-            "legendFormat": "Rate Limit"
+            "expr": "rate(waf_requests_allowed_total[1m])",
+            "legendFormat": "Allowed"
           }
         ]
       },
       {
         "id": 3,
-        "title": "Top Blocked IPs",
-        "type": "table",
-        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "title": "Total Blocked Requests",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 8, "w": 6, "h": 6},
         "targets": [
           {
-            "expr": "topk(10, rate(waf_blocked_total[5m]))",
-            "format": "table"
-          }
-        ]
-      },
-      {
-        "id": 4,
-        "title": "Request Latency (p50, p95, p99)",
-        "type": "graph",
-        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.50, rate(waf_request_duration_seconds_bucket[1m]))",
-            "legendFormat": "p50"
-          },
-          {
-            "expr": "histogram_quantile(0.95, rate(waf_request_duration_seconds_bucket[1m]))",
-            "legendFormat": "p95"
-          },
-          {
-            "expr": "histogram_quantile(0.99, rate(waf_request_duration_seconds_bucket[1m]))",
-            "legendFormat": "p99"
-          }
-        ]
-      },
-      {
-        "id": 5,
-        "title": "Allowed vs Blocked Requests",
-        "type": "graph",
-        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
-        "targets": [
-          {
-            "expr": "rate(waf_requests_allowed_total[1m])",
-            "legendFormat": "Allowed"
-          },
-          {
-            "expr": "rate(waf_requests_blocked_total[1m])",
+            "expr": "waf_requests_blocked_total",
             "legendFormat": "Blocked"
           }
         ]
       },
       {
-        "id": 6,
-        "title": "Active Connections",
-        "type": "graph",
-        "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+        "id": 4,
+        "title": "Total Allowed Requests",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 8, "w": 6, "h": 6},
         "targets": [
           {
-            "expr": "waf_active_connections",
-            "legendFormat": "Active"
+            "expr": "waf_requests_allowed_total",
+            "legendFormat": "Allowed"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Block Rate (Last 5 min)",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 8, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "rate(waf_requests_blocked_total[5m]) * 60",
+            "legendFormat": "Blocked/min"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Allow Rate (Last 5 min)",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 8, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "rate(waf_requests_allowed_total[5m]) * 60",
+            "legendFormat": "Allowed/min"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Blocked Requests Over Time",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 14, "w": 24, "h": 10},
+        "targets": [
+          {
+            "expr": "rate(waf_requests_blocked_total[1m])",
+            "legendFormat": "Blocked RPS"
           }
         ]
       }
     ],
-    "version": 1
+    "schemaVersion": 38,
+    "version": 3
   }
 }

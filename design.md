@@ -29,16 +29,22 @@ title Контекст системы
 skinparam backgroundColor #FFFFFF
 
 actor "Клиент / Атакующий" as Client
+boundary "Load Balancer" as LB
 boundary "WAF System" as WAF_System
 boundary "Protected Backend" as Backend
 agent "Security Admin" as Admin
 database "Grafana/Prometheus" as Monitor
+database "ClickHouse" as CH
 
-Client --> WAF_System : HTTP/HTTPS запросы
+Client --> LB : HTTP/HTTPS запросы
+LB --> WAF_System : Forward
 WAF_System --> Backend : Проксирование чистых запросов
-WAF_System --> Backend : Блокировка угроз (403)
+WAF_System --> LB : Блокировка угроз (403)
+LB --> Client : 403/200
 Admin --> WAF_System : Управление правилами
-WAF_System --> Monitor : Метрики и алерты
+WAF_System --> CH : Аналитика событий
+CH --> Monitor : Метрики
+WAF_System --> Monitor : Prometheus metrics
 Monitor --> Admin : Визуализация
 
 note right of WAF_System
@@ -64,7 +70,11 @@ end note
 | F5 | Агрегация и алертинг | Выявление DDoS/brute-force по окнам времени |
 | F6 | Динамическая блокировка | Автоматическое добавление IP в блок-лист Redis |
 | F7 | Визуализация | Дашборды в Grafana (RPS, блокировки, топ-угрозы) |
-| F8 | Hot-reload правил | Обновление конфигурации без перезапуска |
+| F8 | Whitelist | Управление IP whitelist для исключений |
+| F9 | Circuit Breaker | Защита backend от перегрузок |
+| F10 | GeoIP Enrichment | Определение страны по IP в аналитике |
+| F11 | Real-time Alerts | WebSocket и Telegram уведомления |
+| F12 | Kafka UI | Web-интерфейс для управления Kafka |
 
 ### Нефункциональные требования ⚡
 | Требование | Значение | Обоснование |
@@ -81,6 +91,8 @@ end note
 • Обучение ML-моделей для классификации трафика
 • Аутентификация пользователей защищаемого бэкенда
 • Бэкапы, CI/CD, мониторинг инфраструктуры бэкенда
+• WAF Cluster (multi-node) - single node deployment only
+• Hot-reload правил (изменения требуют перезапуска)
 ```
 
 ---
@@ -94,13 +106,15 @@ title Core Entities
 skinparam classAttributeIconSize 0
 
 class SecurityEvent {
-  +UUID eventId
+  +String eventId
   +Instant timestamp
   +String sourceIp
   +String userAgent
   +String requestPath
+  +String requestMethod
   +ThreatType threatType
   +Integer threatScore
+  +String countryCode
   +Boolean isBlocked
   +Integer responseTimeMs
 }
@@ -111,6 +125,7 @@ enum ThreatType {
   BOT_DETECTED
   DDOS_PATTERN
   RATE_LIMIT_EXCEEDED
+  UNKNOWN
 }
 
 class BotScore {
@@ -119,6 +134,13 @@ class BotScore {
   +Integer navigationPenalty
   +Integer jsCookiePenalty
   +Integer getTotalScore()
+  +Boolean isBot()
+}
+
+class BotAnalysisResult {
+  +Integer totalScore
+  +Boolean isBot
+  +Map<String, Integer> penalties
 }
 
 class Alert {
@@ -127,13 +149,15 @@ class Alert {
   +ThreatType threatType
   +Integer thresholdExceeded
   +Instant timestamp
+  +String message
 }
 
-class Rule {
-  +String pattern
-  +Integer threshold
-  +Duration ttl
-  +Action action
+class IpBlocklist {
+  +IPv4 ip
+  +String reason
+  +DateTime blockedAt
+  +DateTime expiresAt
+  +String blockedBy
 }
 
 SecurityEvent "1" *-- "1" ThreatType
@@ -151,49 +175,82 @@ GET /health
 → 200 OK
 {
   "status": "UP",
+  "timestamp": "2026-05-11T12:00:00Z",
   "components": {
     "redis": "UP",
-    "kafka": "UP", 
-    "clickhouse": "UP"
+    "kafka": "UP"
   }
 }
 
-# Prometheus Metrics
-GET /metrics
-→ text/plain; version=0.0.4
-# HELP waf_requests_total Total filtered requests
-# TYPE waf_requests_total counter
-waf_requests_total{method="GET",threat_type="none"} 15234
+# Liveness Probe
+GET /health/liveness
+→ 200 OK { "status": "UP" }
 
-# Правила фильтрации
-GET /rules
+# Readiness Probe
+GET /health/readiness
+→ 200 OK { "status": "READY" }
+
+# System Metrics
+GET /api/metrics/system
 → 200 OK
-[
-  {"id": "sqli-001", "pattern": "(?i)union.*select", "action": "BLOCK"},
-  {"id": "rate-ip", "threshold": 100, "window": "60s", "action": "THROTTLE"}
-]
+{
+  "heapUsed": 123456789,
+  "heapMax": 2147483648,
+  "threadCount": 45,
+  "uptime": 3600000
+}
 
-PUT /rules
-Content-Type: application/json
-→ 204 No Content (hot-reload)
+# JVM Metrics
+GET /api/metrics/jvm
+→ 200 OK
+{
+  "gc": { "G1 Young Generation_count": 10, "G1 Young Generation_time": 50 },
+  "memoryPools": { "G1 Old Gen": { "used": 100000000, "max": 1400000000 } }
+}
+
+# Whitelist Management
+GET /api/whitelist
+→ 200 OK ["192.168.1.0/24", "10.0.0.0/8"]
+
+POST /api/whitelist
+Body: { "ip": "192.168.1.100" }
+→ 200 OK
+
+DELETE /api/whitelist
+Body: { "ip": "192.168.1.100" }
+→ 200 OK
+
+# Circuit Breaker Status
+GET /api/circuit-breaker/status
+→ 200 OK
+{
+  "state": "CLOSED",
+  "failureCount": 0,
+  "lastFailureTime": null
+}
+
+POST /api/circuit-breaker/reset
+→ 200 OK
 ```
 
 #### Kafka Contracts (Async Events)
 ```yaml
 # Topic: security.events
 key: source_ip (String)
-value: 
+value:
   eventId: UUID
   timestamp: DateTime64(3)
   sourceIp: String
   userAgent: String
   requestPath: String
+  requestMethod: String
   threatType: LowCardinality(String)
   threatScore: UInt8
+  countryCode: String
   isBlocked: Boolean
   responseTimeMs: UInt32
 
-# Topic: security.alerts  
+# Topic: security.alerts
 key: alert_id (UUID)
 value:
   alertId: UUID
@@ -201,18 +258,32 @@ value:
   threatType: String
   thresholdExceeded: UInt32
   timestamp: DateTime64(3)
+  message: String
 ```
 
-#### Data Flow Interfaces (внутренние)
+#### Alert Service API
 ```http
-// Bot Detection
-POST /internal/analyze
-→ BotScore { totalScore: 75, isBot: true }
+# Get recent alerts
+GET /api/alerts
+→ 200 OK
+[{
+  "alertId": "uuid",
+  "sourceIp": "192.168.1.1",
+  "threatType": "DDOS_PATTERN",
+  "timestamp": "2026-05-11T12:00:00Z"
+}]
 
-// IP Blocklist Management
-POST /internal/block
-Body: { "ip": "192.168.1.1", "ttl": 3600 }
-→ 204 No Content (Redis: blocked:ip:{hash})
+# WebSocket for real-time alerts
+ws://localhost:8083/ws/alerts
+
+# Dashboard stats
+GET /api/dashboard/stats
+→ 200 OK
+{
+  "totalEvents": 1000000,
+  "blockedCount": 50000,
+  "activeBlocklistSize": 150
+}
 ```
 
 ---
@@ -229,29 +300,33 @@ skinparam monochrome false
 
 package "Edge Layer" #E8F5E9 {
   component "Load Balancer\n(Nginx/HAProxy)" as LB
-  component "WAF Gateway Cluster\n(Spring Boot x N)" as WAF
-  database "Redis Cluster\n(Rate Limit + Blocklist)" as Redis
+  component "WAF Gateway\n(Spring Boot)" as WAF
+  database "Redis\n(Rate Limit + Blocklist)" as Redis
 }
 
 package "Streaming Layer" #FFF9C4 {
   component "Kafka Cluster\n(security.events, security.alerts)" as Kafka
-  component "Stream Processor\n(Kafka Streams)" as Stream
+  component "Stream Processor\n(Kafka Consumer + Aggregation)" as Stream
+  component "Kafka UI\n(Web Management)" as KafkaUI
 }
 
 package "Storage & Alerting" #FFEBEE {
-  database "ClickHouse Cluster\n(OLAP, 30 days)" as CH
+  database "ClickHouse\n(OLAP, 30 days)" as CH
   component "Alert Service\n(Spring Boot)" as Alert
   component "Grafana" as External
+  component "Telegram Bot" as Telegram
 }
 
 package "Backend Service" #E3F2FD {
-  component "Protected API" as Backend
+  component "Nginx Backend" as Backend
 }
 
 agent "Prometheus" as Prom
+actor "Client / Attacker" as Client
 
 ' === Основной поток (синхронный) ===
-LB --> WAF : HTTP/HTTPS
+Client -> LB : HTTP/HTTPS
+LB -> WAF : Forward
 WAF --> Redis : 1. Rate Limit & Block Check
 WAF --> WAF : 2. SQLi/XSS/Bot Filters
 WAF --> Backend : 3. Clean Request (Proxy)
@@ -260,16 +335,19 @@ WAF --> Kafka : 4. Async Event Log
 ' === Аналитический поток (асинхронный) ===
 Kafka --> Stream : Consume security.events
 Stream --> Stream : Aggregate (1-min window)
+Stream --> Stream : GeoIP enrichment
 Stream --> CH : Write Analytics
-Stream --> Alert : Threshold Exceeded?
+Stream --> Kafka : Produce alerts
 
 ' === Алертинг ===
+Kafka --> Alert : Consume security.alerts
 Alert --> Redis : Update Blocklist (TTL)
-Alert --> External : Push Notification
+Alert --> Telegram : Push Notification
+Alert --> Alert : WebSocket broadcast
 
 ' === Мониторинг ===
 Prom --> LB : Scrape /metrics
-Prom --> WAF
+Prom --> WAF : Scrape /api/metrics
 Prom --> Stream
 Prom --> Redis : Exporter
 Prom --> Kafka : Exporter
@@ -278,15 +356,15 @@ Prom --> CH : Exporter
 note right of WAF
   **Критический путь:**
   • Задержка < 5ms (p99)
-  • Все проверки in-memory / Redis
-  • Fallback при сбоях
+  • All checks in-memory / Redis
+  • Circuit Breaker fallback
 end note
 
 note right of Stream
   **Обработка:**
   • Tumbling window: 1 min
   • GeoIP enrichment
-  • Pattern detection
+  • Anomaly detection
 end note
 @enduml
 ```
@@ -308,7 +386,7 @@ queue "Kafka" as Kafka
 participant "Backend" as Backend
 
 Client -> LB : HTTP Request
-LB -> WAF : Forward
+LB -> WAF : Forward Request
 
 activate WAF
 WAF -> Redis : Check Rate Limit (ZSET)
@@ -316,8 +394,13 @@ activate Redis
 Redis --> WAF : Count: 45/100 ✓
 deactivate Redis
 
+WAF -> Redis : Check Blocklist
+activate Redis
+Redis --> WAF : Not blocked ✓
+deactivate Redis
+
 WAF -> WAF : SQLi Pattern Check
-WAF -> WAF : XSS Pattern Check  
+WAF -> WAF : XSS Pattern Check
 WAF -> WAF : Bot Detection Score
 
 alt Угроза обнаружена
@@ -325,7 +408,8 @@ alt Угроза обнаружена
   activate Kafka
   Kafka --> WAF : Ack
   deactivate Kafka
-  WAF --> Client : HTTP 403 Forbidden
+  WAF -> LB : HTTP 403 Forbidden
+  LB -> Client : 403 Forbidden
 else Запрос чистый
   WAF -> Kafka : Publish security.events (async)
   activate Kafka
@@ -335,7 +419,8 @@ else Запрос чистый
   activate Backend
   Backend --> WAF : HTTP 200
   deactivate Backend
-  WAF --> Client : HTTP 200
+  WAF -> LB : HTTP 200
+  LB -> Client : HTTP 200
 end
 deactivate WAF
 @enduml
@@ -392,7 +477,7 @@ deactivate Stream
 
 ### 🔹 Проблема 1: Низкая задержка при 100k+ RPS
 
-**Контекст:**  
+**Контекст:**
 Проверка Rate Limiting и правил в центральной БД добавляет задержку. При пике синхронные запросы к Redis могут превысить лимит `< 5ms (p99)`.
 
 **Trade-offs:**
@@ -405,32 +490,42 @@ deactivate Stream
 **Решение:**
 ```plantuml
 @startuml Solution1
-title Решение: Кэширование + Fallback
+title Решение: Circuit Breaker + Fallback
 skinparam backgroundColor #FFFFFF
 
+actor "Client" as Client
+participant "Load Balancer" as LB
 participant "WAF Gateway" as WAF
 database "Redis" as Redis
-participant "Local Cache" as Cache
+participant "Backend" as Backend
 
-WAF -> Cache : Check local rate limit
-activate Cache
+Client -> LB : Request
+LB -> WAF : Forward
 
-alt Cache hit & under limit
-  Cache --> WAF : Allow + increment
-  WAF -> WAF : Async sync to Redis
-else Cache miss or near limit
-  WAF -> Redis : Check authoritative count
-  activate Redis
-  Redis --> WAF : Current count
-  deactivate Redis
-  WAF -> Cache : Update local state
+WAF -> Redis : Check Rate Limit
+
+alt Rate Limit OK
+  Redis --> WAF : OK
+  WAF -> Backend : Forward Request
+  alt Backend Available
+    Backend --> WAF : Response
+    WAF -> LB : 200 OK
+    LB -> Client : 200 OK
+  else Backend Down (Circuit Open)
+    WAF -> LB : 503 Service Unavailable
+    LB -> Client : 503 Service Unavailable
+  end
+else Rate Limit Exceeded
+  Redis --> WAF : Limit Exceeded
+  WAF -> LB : 429 Too Many Requests
+  LB -> Client : 429 Too Many Requests
 end
-deactivate Cache
 
-alt Redis unavailable
-  WAF -> WAF : Fallback to local-only mode
-  note right: Graceful Degradation\n(возможны ложные срабатывания)
-end
+note right of WAF
+  **Failures:**
+  - Redis down → local fallback
+  - Backend down → circuit breaker
+end note
 @enduml
 ```
 
@@ -458,6 +553,7 @@ autonumber
 skinparam backgroundColor #FFFFFF
 
 participant "Атакующий" as Attacker
+participant "Load Balancer" as LB
 participant "WAF Node A" as W1
 participant "WAF Node B" as W2
 queue "Kafka" as Kafka
@@ -465,12 +561,18 @@ participant "Stream Processor" as Stream
 database "Redis" as Redis
 
 == Фаза 1: Независимое детектирование ==
-Attacker -> W1 : Malicious Request #1
+Attacker -> LB : Malicious Request #1
+LB -> W1 : Forward
 W1 -> W1 : Detect & Block (403)
+W1 -> LB : 403 Forbidden
+LB -> Attacker : 403
 W1 -> Kafka : security.events (IP=X, threat=SQLi)
 
-Attacker -> W2 : Malicious Request #2  
+Attacker -> LB : Malicious Request #2
+LB -> W2 : Forward
 W2 -> W2 : Detect & Block (403)
+W2 -> LB : 403 Forbidden
+LB -> Attacker : 403
 W2 -> Kafka : security.events (IP=X, threat=SQLi)
 
 note over W1, W2
@@ -498,12 +600,14 @@ Redis --> Kafka : OK
 deactivate Redis
 
 == Фаза 4: Единая защита ==
-Attacker -> W1 : Request #101
+Attacker -> LB : Request #101
+LB -> W1 : Forward
 W1 -> Redis : Check blocklist
-activate Redis  
+activate Redis
 Redis --> W1 : BLOCKED
 deactivate Redis
-W1 --> Attacker : HTTP 403 (Blocklist Match)
+W1 -> LB : HTTP 403 (Blocklist Match)
+LB -> Attacker : HTTP 403
 @enduml
 ```
 
@@ -511,7 +615,8 @@ W1 --> Attacker : HTTP 403 (Blocklist Match)
 1. **Idempotent ключи в Kafka** — `alert_id = hash(IP + threat_type + window_start)`
 2. **Дедупликация на Consumer** — проверка `processed_alerts` set в Redis
 3. **TTL блок-листа** — автоматическая разблокировка, снижение нагрузки на админа
-4. **Локальный кэш блок-листа** — проверка `blocked:ip:*` с TTL 5s в памяти WAF
+4. **WebSocket broadcast** — real-time уведомления админам
+5. **Telegram notifications** — push уведомления в Telegram
 
 ---
 
@@ -574,11 +679,12 @@ CREATE TABLE security_events (
     timestamp DateTime64(3, 'UTC'),
     source_ip IPv4,
     user_agent String,
-    request_path LowCardinality(String),
-    threat_type LowCardinality(String),
+    request_path String,
+    request_method String,
+    threat_type String,
     threat_score UInt8,
-    country_code LowCardinality(String),
-    is_blocked Boolean,
+    country_code String,
+    is_blocked UInt8,
     response_time_ms UInt32
 ) ENGINE = MergeTree
 PARTITION BY toYYYYMM(timestamp)
@@ -586,30 +692,61 @@ ORDER BY (timestamp, source_ip, threat_type)
 TTL timestamp + INTERVAL 30 DAY
 SETTINGS index_granularity = 8192;
 
--- Материализованное представление для Grafana
-CREATE MATERIALIZED VIEW hourly_stats TO hourly_stats_agg AS
-SELECT
-    toStartOfHour(timestamp) as ts_hour,
+-- Materialized view: hourly aggregated stats by threat type and country
+CREATE MATERIALIZED VIEW hourly_stats_by_threat
+ENGINE = SummingMergeTree()
+PARTITION BY toYYYYMM(ts_hour)
+ORDER BY (ts_hour, threat_type, country_code)
+AS SELECT
+    toStartOfHour(timestamp) AS ts_hour,
     threat_type,
     country_code,
-    count() as total_requests,
-    sum(is_blocked) as blocked_count,
-    avg(response_time_ms) as avg_latency,
-    quantile(0.99)(response_time_ms) as p99_latency
+    count() AS total_requests,
+    sum(is_blocked) AS blocked_count,
+    avg(response_time_ms) AS avg_latency,
+    quantile(0.99)(response_time_ms) AS p99_latency
 FROM security_events
 GROUP BY ts_hour, threat_type, country_code;
 
--- Таблица для быстрых запросов (SummingMergeTree)
-CREATE TABLE hourly_stats_agg (
-    ts_hour DateTime,
-    threat_type LowCardinality(String),
-    country_code LowCardinality(String),
-    total_requests UInt64,
-    blocked_count UInt64,
-    avg_latency Float32,
-    p99_latency UInt32
-) ENGINE = SummingMergeTree()
-ORDER BY (ts_hour, threat_type, country_code);
+-- Materialized view: hourly top blocked IPs
+CREATE MATERIALIZED VIEW hourly_top_ips
+ENGINE = SummingMergeTree()
+ORDER BY (ts_hour, source_ip)
+AS SELECT
+    toStartOfHour(timestamp) AS ts_hour,
+    source_ip,
+    sum(is_blocked) AS blocked_count,
+    count() AS total_requests,
+    any(threat_type) AS primary_threat
+FROM security_events
+WHERE is_blocked = 1
+GROUP BY ts_hour, source_ip;
+
+-- Table for IP blocklist
+CREATE TABLE ip_blocklist (
+    ip IPv4,
+    reason String,
+    blocked_at DateTime,
+    expires_at DateTime,
+    blocked_by String
+) ENGINE = MergeTree()
+ORDER BY (ip, blocked_at);
+
+-- Table for alerts
+CREATE TABLE alerts (
+    alert_id UUID,
+    timestamp DateTime64(3, 'UTC'),
+    source_ip IPv4,
+    threat_type String,
+    threshold_exceeded UInt32,
+    message String
+) ENGINE = MergeTree()
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (timestamp, source_ip);
+
+-- Indexes for common queries
+ALTER TABLE security_events ADD INDEX idx_source_ip source_ip TYPE bloom_filter GRANULARITY 1;
+ALTER TABLE security_events ADD INDEX idx_threat_type threat_type TYPE set(1000) GRANULARITY 4;
 ```
 
 **Преимущества подхода:**

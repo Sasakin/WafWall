@@ -21,9 +21,9 @@ waf:
     window-seconds: 60
     max-requests: 100
   bot:
-    threshold: 70
-    frequency-threshold: 50
-    js-challenge-enabled: true
+    threshold: 30
+    frequency-threshold: 10
+    js-challenge-enabled: false
     reputation-check-enabled: true
     header-analysis-enabled: true
   whitelist:
@@ -51,6 +51,9 @@ management:
     export:
       prometheus:
         enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 logging:
   level:

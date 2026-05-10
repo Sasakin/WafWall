@@ -1,0 +1,69 @@
+{
+  "title": "WAF - Threats by Type",
+  "tags": ["waf", "threats", "security"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "SQL Injection Blocked",
+      "type": "graph",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "rate(waf_blocked_total{threat_type=\"sql_injection\"}[1m])",
+          "legendFormat": "SQL Injection"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "XSS Blocked",
+      "type": "graph",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "rate(waf_blocked_total{threat_type=\"xss\"}[1m])",
+          "legendFormat": "XSS"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Bot Detection",
+      "type": "graph",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "rate(waf_blocked_total{threat_type=\"bot\"}[1m])",
+          "legendFormat": "Bots"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Rate Limit Exceeded",
+      "type": "graph",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "rate(waf_blocked_total{threat_type=\"rate_limit\"}[1m])",
+          "legendFormat": "Rate Limited"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "All Threats Combined",
+      "type": "graph",
+      "gridPos": {"x": 0, "y": 16, "w": 24, "h": 8},
+      "targets": [
+        {
+          "expr": "rate(waf_blocked_total[1m])",
+          "legendFormat": "{{threat_type}}"
+        }
+      ]
+    }
+  ],
+  "version": 1
+}

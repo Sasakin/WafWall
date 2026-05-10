@@ -28,15 +28,15 @@ public class BotDetectionService {
     @Value("${waf.bot.js-challenge-enabled:true}")
     private boolean jsChallengeEnabled;
 
-    private static final int PENALTY_SUSPICIOUS_UA = 25;
-    private static final int PENALTY_KNOWN_BOT = 30;
-    private static final int PENALTY_HIGH_FREQUENCY = 35;
-    private static final int PENALTY_NO_JS_COOKIE = 10;
-    private static final int PENALTY_NO_REFERRER = 15;
-    private static final int PENALTY_HEADLESS = 25;
-    private static final int PENALTY_AUTOMATED_TOOL = 30;
-    private static final int PENALTY_IP_REPUTATION = 20;
-    private static final int PENALTY_ANOMALOUS_HEADERS = 15;
+    private static final int PENALTY_SUSPICIOUS_UA = 35;
+    private static final int PENALTY_KNOWN_BOT = 50;
+    private static final int PENALTY_HIGH_FREQUENCY = 40;
+    private static final int PENALTY_NO_JS_COOKIE = 20;
+    private static final int PENALTY_NO_REFERRER = 20;
+    private static final int PENALTY_HEADLESS = 30;
+    private static final int PENALTY_AUTOMATED_TOOL = 50;
+    private static final int PENALTY_IP_REPUTATION = 25;
+    private static final int PENALTY_ANOMALOUS_HEADERS = 20;
 
     private static final Set<String> KNOWN_BOTS = Set.of(
             "curl", "wget", "python", "requests", "bot", "crawler",

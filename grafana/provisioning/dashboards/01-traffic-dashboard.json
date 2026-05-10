@@ -1,0 +1,61 @@
+{
+  "title": "WAF - Traffic Overview",
+  "tags": ["waf", "traffic"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Requests (RPS)",
+      "type": "graph",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "rate(waf_requests_total[1m])",
+          "legendFormat": "RPS"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Allowed vs Blocked",
+      "type": "graph",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "rate(waf_requests_allowed_total[1m])",
+          "legendFormat": "Allowed"
+        },
+        {
+          "expr": "rate(waf_requests_blocked_total[1m])",
+          "legendFormat": "Blocked"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Active Connections",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 8, "w": 6, "h": 4},
+      "targets": [
+        {
+          "expr": "waf_active_connections",
+          "legendFormat": "Active"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Blocked IPs Count",
+      "type": "stat",
+      "gridPos": {"x": 6, "y": 8, "w": 6, "h": 4},
+      "targets": [
+        {
+          "expr": "waf_blocked_ips_count",
+          "legendFormat": "Blocked IPs"
+        }
+      ]
+    }
+  ],
+  "version": 1
+}

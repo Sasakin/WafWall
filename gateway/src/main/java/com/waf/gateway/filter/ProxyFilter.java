@@ -2,6 +2,7 @@ package com.waf.gateway.filter;
 
 import com.waf.gateway.service.ProxyService;
 import com.waf.gateway.service.WafService;
+import com.waf.gateway.util.IpUtil;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -29,34 +30,22 @@ public class ProxyFilter implements Filter {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         HttpServletResponse httpResponse = (HttpServletResponse) response;
 
-        String clientIp = getClientIp(httpRequest);
+        String clientIp = IpUtil.getClientIp(httpRequest);
         String path = httpRequest.getRequestURI();
         String userAgent = httpRequest.getHeader("User-Agent");
 
-        // Process through WAF filters first
         wafService.processRequest(clientIp, path, userAgent, httpRequest, httpResponse);
 
-        // If blocked by WAF, don't proxy
         if (httpResponse.getStatus() == 403) {
             return;
         }
 
-        // Skip proxy for local endpoints - continue to controller
         if (isLocalEndpoint(path)) {
             chain.doFilter(request, response);
             return;
         }
 
-        // If request passed WAF, proxy to backend
         proxyService.proxyRequest(httpRequest, httpResponse);
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isEmpty()) {
-            return xff.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 
     private boolean isLocalEndpoint(String path) {
@@ -65,7 +54,6 @@ public class ProxyFilter implements Filter {
                path.startsWith("/metrics") ||
                path.equals("/api/security/events") ||
                path.equals("/api/whitelist") ||
-               path.startsWith("/api/circuit") ||
-               path.startsWith("/api/");
+               path.startsWith("/api/circuit");
     }
 }
