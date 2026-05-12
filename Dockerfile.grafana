@@ -1,0 +1,5 @@
+FROM grafana/grafana:latest
+
+RUN grafana plugins install grafana-clickhouse-datasource || true
+
+EXPOSE 3000

@@ -1,0 +1,152 @@
+{
+  "dashboard": {
+    "title": "WAF Analytics (ClickHouse)",
+    "tags": ["waf", "analytics", "clickhouse"],
+    "timezone": "browser",
+    "refresh": "1m",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Total Requests (Last 24h)",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+        "datasource": "ClickHouse",
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none"
+        },
+        "targets": [
+          {
+            "datasource": "ClickHouse",
+            "queryType": "table",
+            "format": "table",
+            "builder": {
+              "query": {
+                "fields": [
+                  {"column": "total_requests", "aggregate": "sum", "groupBy": []}
+                ],
+                "table": "hourly_stats_by_threat",
+                "filters": [],
+                "limit": 1
+              }
+            },
+            "rawSql": "SELECT sum(total_requests) FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 24 HOUR"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Blocked Requests (Last 24h)",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+        "datasource": "ClickHouse",
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}]}
+          }
+        },
+        "targets": [
+          {
+            "datasource": "ClickHouse",
+            "rawSql": "SELECT sum(blocked_count) FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 24 HOUR"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Unique Attackers (Last 24h)",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+        "datasource": "ClickHouse",
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {"mode": "absolute", "steps": [{"color": "orange", "value": null}]}
+          }
+        },
+        "targets": [
+          {
+            "datasource": "ClickHouse",
+            "rawSql": "SELECT count(DISTINCT source_ip) FROM security.security_events WHERE timestamp >= now() - INTERVAL 24 HOUR AND is_blocked = 1"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Block Rate % (Last 24h)",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+        "datasource": "ClickHouse",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {"mode": "thresholds"},
+            "thresholds": {"mode": "absolute", "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 5},
+              {"color": "red", "value": 20}
+            ]}
+          }
+        },
+        "targets": [
+          {
+            "datasource": "ClickHouse",
+            "rawSql": "SELECT round(100.0 * sum(blocked_count) / sum(total_requests), 2) FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 24 HOUR"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Requests by Threat Type",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+        "datasource": "ClickHouse",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "bars",
+              "lineInterpolation": "smooth",
+              "showPoints": "never"
+            },
+            "tooltip": {"mode": "multi"}
+          }
+        },
+        "targets": [
+          {
+            "datasource": "ClickHouse",
+            "rawSql": "SELECT ts_hour, threat_type, sum(total_requests) as requests FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 24 HOUR GROUP BY ts_hour, threat_type ORDER BY ts_hour"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Blocked vs Allowed by Threat Type",
+        "type": "piechart",
+        "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+        "datasource": "ClickHouse",
+        "targets": [
+          {
+            "datasource": "ClickHouse",
+            "rawSql": "SELECT threat_type, sum(blocked_count) as blocked FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 24 HOUR GROUP BY threat_type ORDER BY blocked DESC LIMIT 10"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Daily Trend",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 12, "w": 24, "h": 8},
+        "datasource": "ClickHouse",
+        "targets": [
+          {
+            "datasource": "ClickHouse",
+            "rawSql": "SELECT ts_date, sum(total_requests) as total, sum(blocked_count) as blocked FROM security.daily_stats WHERE ts_date >= today() - 7 GROUP BY ts_date ORDER BY ts_date"
+          }
+        ]
+      }
+    ],
+    "schemaVersion": 38,
+    "version": 1
+  }
+}
