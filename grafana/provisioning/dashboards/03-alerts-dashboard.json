@@ -1,0 +1,48 @@
+{
+  "title": "WAF - Alert Service Monitor",
+  "tags": [
+    "waf",
+    "alerts",
+    "security"
+  ],
+  "timezone": "browser",
+  "refresh": "5s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Alerts Received Rate",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "rate(alerts_processed_total[1m])",
+          "legendFormat": "Alerts/sec"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Total Alerts Processed",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 6,
+        "h": 6
+      },
+      "targets": [
+        {
+          "expr": "alerts_processed_total",
+          "legendFormat": "Total"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1
+}

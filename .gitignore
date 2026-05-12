@@ -1,0 +1,15 @@
+.env
+QWEN.md
+project
+architecture-docs
+.skill
+.skills
+.qwen
+.idea
+.gradle
+.explyt
+build/
+**/build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+demo/results/

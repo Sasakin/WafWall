@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAF Alert Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+        .header {
+            background: #16213e;
+            padding: 20px 30px;
+            border-bottom: 2px solid #0f3460;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            color: #e94560;
+            font-size: 24px;
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #555;
+        }
+        .status-dot.connected { background: #00ff88; }
+        .status-dot.disconnected { background: #e94560; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 20px 30px;
+        }
+        .stat-card {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-card h3 {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #e94560;
+        }
+        .stat-card.critical .value { color: #e94560; }
+        .stat-card.high .value { color: #ff6b6b; }
+        .stat-card.medium .value { color: #feca57; }
+        .stat-card.low .value { color: #00ff88; }
+        .alerts-container {
+            padding: 0 30px 30px;
+        }
+        .alerts-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .alerts-header h2 {
+            color: #eee;
+        }
+        .clear-btn {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .clear-btn:hover {
+            background: #ff6b6b;
+        }
+        .alerts-list {
+            max-height: calc(100vh - 280px);
+            overflow-y: auto;
+        }
+        .alert-item {
+            background: #16213e;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            overflow: hidden;
+            border-left: 4px solid #555;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .alert-item.critical { border-left-color: #e94560; }
+        .alert-item.high { border-left-color: #ff6b6b; }
+        .alert-item.medium { border-left-color: #feca57; }
+        .alert-item.low { border-left-color: #00ff88; }
+        .alert-header {
+            padding: 15px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .alert-header:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        .alert-severity {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .alert-severity.critical { background: #e94560; }
+        .alert-severity.high { background: #ff6b6b; }
+        .alert-severity.medium { background: #feca57; color: #333; }
+        .alert-severity.low { background: #00ff88; color: #333; }
+        .alert-info {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #888;
+        }
+        .alert-details {
+            display: none;
+            padding: 15px 20px;
+            background: #0f3460;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .alert-details.show {
+            display: block;
+        }
+        .detail-row {
+            display: flex;
+            margin-bottom: 8px;
+        }
+        .detail-label {
+            width: 120px;
+            color: #888;
+        }
+        .detail-value {
+            color: #eee;
+            font-family: monospace;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: #555;
+        }
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>WAF Alert Monitor</h1>
+        <div class="status">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Disconnected</span>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-card">
+            <h3>Total Alerts</h3>
+            <div class="value" id="totalAlerts">0</div>
+        </div>
+        <div class="stat-card critical">
+            <h3>Critical</h3>
+            <div class="value" id="criticalCount">0</div>
+        </div>
+        <div class="stat-card high">
+            <h3>High</h3>
+            <div class="value" id="highCount">0</div>
+        </div>
+        <div class="stat-card medium">
+            <h3>Medium</h3>
+            <div class="value" id="mediumCount">0</div>
+        </div>
+        <div class="stat-card low">
+            <h3>Low</h3>
+            <div class="value" id="lowCount">0</div>
+        </div>
+    </div>
+
+    <div class="alerts-container">
+        <div class="alerts-header">
+            <h2>Recent Alerts</h2>
+            <button class="clear-btn" onclick="clearAlerts()">Clear All</button>
+        </div>
+        <div class="alerts-list" id="alertsList">
+            <div class="empty-state" id="emptyState">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <p>No alerts yet. Waiting for connections...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const wsHost = window.location.hostname + ':8083';
+        const wsUrl = `ws://${wsHost}/ws`;
+        let socket = null;
+        let alerts = [];
+        let stats = { critical: 0, high: 0, medium: 0, low: 0, total: 0 };
+
+        function connect() {
+            updateStatus(false);
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                updateStatus(true);
+                socket.send('CONNECT\naccept-version:1.2\nhost:/\n\n\x00');
+            };
+
+            socket.onmessage = (event) => {
+                const frame = event.data.trim();
+                if (frame.startsWith('CONNECTED')) {
+                    socket.send('SUBSCRIBE\nid:sub-1\ndestination:/topic/alerts\n\n\x00');
+                } else if (frame.startsWith('MESSAGE')) {
+                    const bodyStart = frame.indexOf('\n\n');
+                    if (bodyStart !== -1) {
+                        const body = frame.substring(bodyStart + 2);
+                        try {
+                            const alert = JSON.parse(body);
+                            addAlert(alert);
+                        } catch (e) {
+                            console.error('Failed to parse alert:', e);
+                        }
+                    }
+                }
+            };
+
+            socket.onclose = () => {
+                updateStatus(false);
+                setTimeout(connect, 5000);
+            };
+
+            socket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        function updateStatus(connected) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            if (connected) {
+                dot.className = 'status-dot connected';
+                text.textContent = 'Connected';
+            } else {
+                dot.className = 'status-dot disconnected';
+                text.textContent = 'Disconnected';
+            }
+        }
+
+        function determineSeverity(alert) {
+            const threat = (alert.threatType || '').toUpperCase();
+            const threshold = alert.thresholdExceeded || 0;
+            if (threat === 'DDOS_PATTERN' || threshold > 500) return 'critical';
+            if (threat === 'SQL_INJECTION' || threat === 'XSS_ATTACK' || threshold > 100) return 'high';
+            if (threat === 'RATE_LIMIT_EXCEEDED' || threshold > 50) return 'medium';
+            return 'low';
+        }
+
+        function addAlert(alert) {
+            alert.severity = determineSeverity(alert);
+            alert.timestamp = alert.timestamp || new Date().toISOString();
+            alerts.unshift(alert);
+            if (alerts.length > 100) alerts.pop();
+
+            stats[alert.severity]++;
+            stats.total++;
+            updateStats();
+            renderAlerts();
+        }
+
+        function updateStats() {
+            document.getElementById('totalAlerts').textContent = stats.total;
+            document.getElementById('criticalCount').textContent = stats.critical;
+            document.getElementById('highCount').textContent = stats.high;
+            document.getElementById('mediumCount').textContent = stats.medium;
+            document.getElementById('lowCount').textContent = stats.low;
+        }
+
+        function renderAlerts() {
+            const list = document.getElementById('alertsList');
+            const empty = document.getElementById('emptyState');
+
+            if (alerts.length === 0) {
+                empty.style.display = 'block';
+                return;
+            }
+            empty.style.display = 'none';
+
+            const existingAlerts = list.querySelectorAll('.alert-item');
+            existingAlerts.forEach(el => {
+                if (!alerts.find(a => a.alertId === el.dataset.id)) {
+                    el.remove();
+                }
+            });
+
+            alerts.forEach((alert, index) => {
+                let el = list.querySelector(`[data-id="${alert.alertId}"]`);
+                if (!el) {
+                    el = createAlertElement(alert);
+                    list.insertBefore(el, list.firstChild);
+                }
+                updateAlertElement(el, alert);
+            });
+        }
+
+        function createAlertElement(alert) {
+            const el = document.createElement('div');
+            el.className = `alert-item ${alert.severity}`;
+            el.dataset.id = alert.alertId;
+            el.innerHTML = `
+                <div class="alert-header" onclick="toggleDetails(this)">
+                    <div class="alert-info">
+                        <span class="alert-severity ${alert.severity}">${alert.severity}</span>
+                        <span>${formatTime(alert.timestamp)}</span>
+                        <span>${alert.threatType || 'UNKNOWN'}</span>
+                        <span>IP: ${alert.sourceIp || 'N/A'}</span>
+                    </div>
+                </div>
+                <div class="alert-details"></div>
+            `;
+            return el;
+        }
+
+        function updateAlertElement(el, alert) {
+            el.className = `alert-item ${alert.severity}`;
+            const header = el.querySelector('.alert-header');
+            const details = el.querySelector('.alert-details');
+
+            header.innerHTML = `
+                <div class="alert-info">
+                    <span class="alert-severity ${alert.severity}">${alert.severity}</span>
+                    <span>${formatTime(alert.timestamp)}</span>
+                    <span>${alert.threatType || 'UNKNOWN'}</span>
+                    <span>IP: ${alert.sourceIp || 'N/A'}</span>
+                </div>
+            `;
+
+            details.innerHTML = `
+                <div class="detail-row"><span class="detail-label">Alert ID:</span><span class="detail-value">${alert.alertId || 'N/A'}</span></div>
+                <div class="detail-row"><span class="detail-label">Source IP:</span><span class="detail-value">${alert.sourceIp || 'N/A'}</span></div>
+                <div class="detail-row"><span class="detail-label">Threat Type:</span><span class="detail-value">${alert.threatType || 'N/A'}</span></div>
+                <div class="detail-row"><span class="detail-label">Message:</span><span class="detail-value">${alert.message || 'N/A'}</span></div>
+                <div class="detail-row"><span class="detail-label">Threshold:</span><span class="detail-value">${alert.thresholdExceeded || 0} req/min</span></div>
+                <div class="detail-row"><span class="detail-label">Timestamp:</span><span class="detail-value">${alert.timestamp || 'N/A'}</span></div>
+            `;
+        }
+
+        function toggleDetails(header) {
+            const details = header.nextElementSibling;
+            details.classList.toggle('show');
+        }
+
+        function formatTime(timestamp) {
+            if (!timestamp) return '';
+            const date = new Date(timestamp.replace('Z', '+00:00'));
+            return date.toLocaleTimeString();
+        }
+
+        function clearAlerts() {
+            alerts = [];
+            stats = { critical: 0, high: 0, medium: 0, low: 0, total: 0 };
+            updateStats();
+            renderAlerts();
+        }
+
+        connect();
+    </script>
+</body>
+</html>

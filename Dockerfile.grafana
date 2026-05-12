@@ -1,0 +1,7 @@
+FROM grafana/grafana:latest
+
+COPY scripts/install-clickhouse-plugin.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/install-clickhouse-plugin.sh && \
+    /usr/local/bin/install-clickhouse-plugin.sh || true
+
+EXPOSE 3000

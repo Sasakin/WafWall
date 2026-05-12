@@ -1,0 +1,11 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY alert-receiver/requirements-alerts.txt .
+RUN pip install --no-cache-dir --trusted-host pypi.org --trusted-host files.pythonhosted.org websocket-client
+
+COPY alert-receiver/alert_receiver.py .
+COPY alert-receiver/alert-ui.html .
+
+CMD ["python", "alert_receiver.py"]

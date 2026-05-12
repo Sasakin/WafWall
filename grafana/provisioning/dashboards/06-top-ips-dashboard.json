@@ -1,0 +1,52 @@
+{
+  "title": "WAF Top Attackers (ClickHouse)",
+  "tags": [
+    "waf",
+    "top-ips",
+    "clickhouse"
+  ],
+  "timezone": "browser",
+  "refresh": "5m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Top 10 Attacking IPs",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT source_ip, sum(blocked_count) as blocked_count, sum(total_requests) as total_requests FROM security.hourly_top_ips WHERE ts_hour >= now() - INTERVAL 24 HOUR GROUP BY source_ip ORDER BY blocked_count DESC LIMIT 10"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Top Countries",
+      "type": "barchart",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT country_code, sum(blocked_count) as blocked FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 24 HOUR AND country_code != \"\" GROUP BY country_code ORDER BY blocked DESC LIMIT 15"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1
+}

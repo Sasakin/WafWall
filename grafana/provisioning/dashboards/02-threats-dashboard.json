@@ -1,0 +1,48 @@
+{
+  "title": "WAF - Threats by Type",
+  "tags": [
+    "waf",
+    "threats",
+    "security"
+  ],
+  "timezone": "browser",
+  "refresh": "5s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "SQL Injection Blocked",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "rate(waf_blocked_total[1m])",
+          "legendFormat": "SQL Injection"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "XSS Blocked",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "rate(waf_blocked_total[1m])",
+          "legendFormat": "XSS"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1
+}

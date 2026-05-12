@@ -1,0 +1,90 @@
+{
+  "title": "WAF Performance (ClickHouse)",
+  "tags": [
+    "waf",
+    "performance",
+    "clickhouse"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Avg Response Time (ms)",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT round(avg(avg_latency), 2) as value FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 1 HOUR"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "P99 Latency (ms)",
+      "type": "stat",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT round(avg(p99_latency), 2) as value FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 1 HOUR"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Latency Over Time",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT ts_hour, round(avg(avg_latency), 2) as avg_latency, round(avg(p99_latency), 2) as p99 FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 24 HOUR GROUP BY ts_hour ORDER BY ts_hour"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Avg Response Time by Path",
+      "type": "barchart",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT request_path, round(avg(response_time_ms), 2) as avg_ms FROM security.security_events WHERE timestamp >= now() - INTERVAL 24 HOUR GROUP BY request_path ORDER BY avg_ms DESC LIMIT 15"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1
+}

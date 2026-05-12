@@ -1,0 +1,109 @@
+{
+  "title": "WAF Analytics (ClickHouse)",
+  "tags": [
+    "waf",
+    "analytics",
+    "clickhouse"
+  ],
+  "timezone": "browser",
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Requests (Last 24h)",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT sum(total_requests) as value FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 24 HOUR"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Blocked Requests (Last 24h)",
+      "type": "stat",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT sum(blocked_count) as value FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 24 HOUR"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Unique Attackers",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT count(DISTINCT source_ip) as value FROM security.security_events WHERE timestamp >= now() - INTERVAL 24 HOUR AND is_blocked = 1"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Block Rate %",
+      "type": "stat",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT round(100.0 * sum(blocked_count) / sum(total_requests), 2) as value FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 24 HOUR"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Daily Trend",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT ts_date, sum(total_requests) as total, sum(blocked_count) as blocked FROM security.daily_stats WHERE ts_date >= today() - 7 GROUP BY ts_date ORDER BY ts_date"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1
+}

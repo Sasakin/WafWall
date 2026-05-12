@@ -1,0 +1,61 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: waf-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+
+waf:
+  rate-limit:
+    window-seconds: 60
+    max-requests: 100
+  bot:
+    threshold: 30
+    frequency-threshold: 10
+    js-challenge-enabled: false
+    reputation-check-enabled: true
+    header-analysis-enabled: true
+  whitelist:
+    enabled: true
+  circuit-breaker:
+    enabled: true
+    failure-threshold: 5
+    success-threshold: 3
+    timeout-seconds: 30
+  filters:
+    sql-injection:
+      enabled: true
+    xss:
+      enabled: true
+  backend:
+    url: ${WAF_BACKEND_URL:http://localhost:8081}
+    timeout-ms: 5000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus,info
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+logging:
+  level:
+    com.waf: DEBUG
+    org.springframework: INFO

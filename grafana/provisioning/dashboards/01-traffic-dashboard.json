@@ -1,0 +1,47 @@
+{
+  "title": "WAF - Traffic Overview",
+  "tags": ["waf", "traffic"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Requests (RPS)",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "rate(waf_requests_total[1m])", "legendFormat": "RPS"}
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Allowed vs Blocked",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "rate(waf_requests_allowed_total[1m])", "legendFormat": "Allowed"},
+        {"expr": "rate(waf_requests_blocked_total[1m])", "legendFormat": "Blocked"}
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Request Methods",
+      "type": "piechart",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "rate(waf_requests_by_method[5m])", "legendFormat": "{{method}}"}
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Top Paths",
+      "type": "bargauge",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "topk(10, rate(waf_requests_by_path[5m]))", "legendFormat": "{{path}}"}
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1
+}
