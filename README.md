@@ -59,7 +59,7 @@ Client -> WAF Gateway -> Backend
 - `GET /api/metrics/jvm` - JVM metrics
 - `GET /metrics` - Prometheus metrics
 
-### Stream Processor (port 8081)
+### Stream Processor (port 8091)
 - `GET /health` - Health check
 
 ### Alert Service (port 8082)

@@ -1,158 +1,90 @@
 {
-  "dashboard": {
-    "title": "WAF Performance (ClickHouse)",
-    "tags": ["waf", "performance", "latency", "clickhouse"],
-    "timezone": "browser",
-    "refresh": "30s",
-    "panels": [
-      {
-        "id": 1,
-        "title": "Avg Response Time (ms)",
-        "type": "stat",
-        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
-        "datasource": "ClickHouse",
-        "fieldConfig": {
-          "defaults": {
-            "unit": "ms",
-            "color": {"mode": "thresholds"},
-            "thresholds": {"mode": "absolute", "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 100},
-              {"color": "red", "value": 500}
-            ]}
-          }
-        },
-        "targets": [
-          {
-            "datasource": "ClickHouse",
-            "rawSql": "SELECT round(avg(avg_latency), 2) FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 1 HOUR"
-          }
-        ]
+  "title": "WAF Performance (ClickHouse)",
+  "tags": [
+    "waf",
+    "performance",
+    "clickhouse"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Avg Response Time (ms)",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
       },
-      {
-        "id": 2,
-        "title": "P99 Latency (ms)",
-        "type": "stat",
-        "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
-        "datasource": "ClickHouse",
-        "fieldConfig": {
-          "defaults": {
-            "unit": "ms",
-            "color": {"mode": "thresholds"},
-            "thresholds": {"mode": "absolute", "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 200},
-              {"color": "red", "value": 1000}
-            ]}
-          }
-        },
-        "targets": [
-          {
-            "datasource": "ClickHouse",
-            "rawSql": "SELECT round(avg(p99_latency), 2) FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 1 HOUR"
-          }
-        ]
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT round(avg(avg_latency), 2) as value FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 1 HOUR"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "P99 Latency (ms)",
+      "type": "stat",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
       },
-      {
-        "id": 3,
-        "title": "Max Response Time (ms)",
-        "type": "stat",
-        "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
-        "datasource": "ClickHouse",
-        "fieldConfig": {
-          "defaults": {
-            "unit": "ms",
-            "color": {"mode": "thresholds"},
-            "thresholds": {"mode": "absolute", "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 500},
-              {"color": "red", "value": 2000}
-            ]}
-          }
-        },
-        "targets": [
-          {
-            "datasource": "ClickHouse",
-            "rawSql": "SELECT round(max(max_latency), 2) FROM security.daily_stats WHERE ts_date = today()"
-          }
-        ]
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT round(avg(p99_latency), 2) as value FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 1 HOUR"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Latency Over Time",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 8
       },
-      {
-        "id": 4,
-        "title": "Requests by Path",
-        "type": "bargauge",
-        "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
-        "datasource": "ClickHouse",
-        "options": {
-          "displayMode": "gradient",
-          "orientation": "horizontal"
-        },
-        "targets": [
-          {
-            "datasource": "ClickHouse",
-            "rawSql": "SELECT request_path, count() as requests FROM security.security_events WHERE timestamp >= now() - INTERVAL 1 HOUR GROUP BY request_path ORDER BY requests DESC LIMIT 10"
-          }
-        ]
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT ts_hour, round(avg(avg_latency), 2) as avg_latency, round(avg(p99_latency), 2) as p99 FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 24 HOUR GROUP BY ts_hour ORDER BY ts_hour"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Avg Response Time by Path",
+      "type": "barchart",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
       },
-      {
-        "id": 5,
-        "title": "Latency Over Time (P50/P90/P99)",
-        "type": "timeseries",
-        "gridPos": {"x": 0, "y": 4, "w": 24, "h": 8},
-        "datasource": "ClickHouse",
-        "fieldConfig": {
-          "defaults": {
-            "unit": "ms",
-            "custom": {
-              "drawStyle": "lines",
-              "lineInterpolation": "smooth",
-              "showPoints": "never"
-            }
-          },
-          "overrides": [
-            {"matcher": {"id": "byRegexp", "options": "p99"}, "properties": [{"color": {"fixedColor": "red", "mode": "fixed"}}]},
-            {"matcher": {"id": "byRegexp", "options": "p90"}, "properties": [{"color": {"fixedColor": "orange", "mode": "fixed"}}]},
-            {"matcher": {"id": "byRegexp", "options": "p50"}, "properties": [{"color": {"fixedColor": "green", "mode": "fixed"}}]}
-          ]
-        },
-        "targets": [
-          {
-            "datasource": "ClickHouse",
-            "rawSql": "SELECT ts_hour, round(avg(avg_latency), 2) as p50, round(quantile(0.9)(avg_latency), 2) as p90, round(avg(p99_latency), 2) as p99 FROM security.hourly_stats_by_threat WHERE ts_hour >= now() - INTERVAL 24 HOUR GROUP BY ts_hour ORDER BY ts_hour"
-          }
-        ]
-      },
-      {
-        "id": 6,
-        "title": "Avg Response Time by Path",
-        "type": "barchart",
-        "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
-        "datasource": "ClickHouse",
-        "targets": [
-          {
-            "datasource": "ClickHouse",
-            "rawSql": "SELECT request_path, round(avg(response_time_ms), 2) as avg_ms FROM security.security_events WHERE timestamp >= now() - INTERVAL 24 HOUR GROUP BY request_path ORDER BY avg_ms DESC LIMIT 15"
-          }
-        ]
-      },
-      {
-        "id": 7,
-        "title": "Slowest Requests (Top 20)",
-        "type": "table",
-        "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
-        "datasource": "ClickHouse",
-        "options": {
-          "showType": "top"
-        },
-        "targets": [
-          {
-            "datasource": "ClickHouse",
-            "rawSql": "SELECT timestamp, source_ip, request_path, response_time_ms, threat_type FROM security.security_events WHERE timestamp >= now() - INTERVAL 24 HOUR ORDER BY response_time_ms DESC LIMIT 20"
-          }
-        ]
-      }
-    ],
-    "schemaVersion": 38,
-    "version": 1
-  }
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "ClickHouse",
+          "queryType": "SQL",
+          "rawSql": "SELECT request_path, round(avg(response_time_ms), 2) as avg_ms FROM security.security_events WHERE timestamp >= now() - INTERVAL 24 HOUR GROUP BY request_path ORDER BY avg_ms DESC LIMIT 15"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1
 }

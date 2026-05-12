@@ -1,13 +1,12 @@
 -- ClickHouse Schema for WAF Security Events
--- Database: security
 
 CREATE DATABASE IF NOT EXISTS security;
 
 -- Main security events table
 CREATE TABLE IF NOT EXISTS security.security_events (
     event_id UUID,
-    timestamp DateTime64(3, 'UTC'),
-    source_ip IPv4,
+    timestamp DateTime64(3),
+    source_ip String,
     user_agent String,
     request_path String,
     request_method String,
@@ -19,7 +18,6 @@ CREATE TABLE IF NOT EXISTS security.security_events (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (timestamp, source_ip, threat_type)
-TTL timestamp + INTERVAL 30 DAY
 SETTINGS index_granularity = 8192;
 
 -- Materialized view: hourly aggregated stats by threat type and country
@@ -99,7 +97,7 @@ GROUP BY ts_hour, source_ip;
 
 -- Table for IP blocklist
 CREATE TABLE IF NOT EXISTS security.ip_blocklist (
-    ip IPv4,
+    ip String,
     reason String,
     blocked_at DateTime,
     expires_at DateTime,
@@ -110,26 +108,11 @@ ORDER BY (ip, blocked_at);
 -- Table for alerts
 CREATE TABLE IF NOT EXISTS security.alerts (
     alert_id UUID,
-    timestamp DateTime64(3, 'UTC'),
-    source_ip IPv4,
+    timestamp DateTime64(3),
+    source_ip String,
     threat_type String,
     threshold_exceeded UInt32,
     message String
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (timestamp, source_ip);
-
--- Dictionary for known bot User-Agents
-CREATE DICTIONARY IF NOT EXISTS security.bot_user_agents (
-    user_agent_prefix String,
-    bot_name String,
-    is_malicious UInt8
-) PRIMARY KEY user_agent_prefix
-SOURCE(HTTP(URL 'https://example.com/bots.json'))
-LAYOUT(flat())
-LIFETIME(3600);
-
--- Create indexes for common queries
-ALTER TABLE security.security_events ADD INDEX idx_source_ip source_ip TYPE bloom_filter GRANULARITY 1;
-ALTER TABLE security.security_events ADD INDEX idx_threat_type threat_type TYPE set(1000) GRANULARITY 4;
-ALTER TABLE security.security_events ADD INDEX idx_country_code country_code TYPE set(1000) GRANULARITY 4;

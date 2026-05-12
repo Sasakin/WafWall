@@ -18,4 +18,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator:3.2.0")
     implementation("org.yaml:snakeyaml:2.2")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.16.0")
+    implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
+    implementation("io.github.resilience4j:resilience4j-spring-boot2:2.2.0")
 }

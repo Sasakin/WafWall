@@ -1,14 +1,23 @@
 {
   "title": "WAF - Latency",
-  "tags": ["waf", "latency", "performance"],
+  "tags": [
+    "waf",
+    "latency",
+    "performance"
+  ],
   "timezone": "browser",
   "refresh": "5s",
   "panels": [
     {
       "id": 1,
       "title": "Request Latency p50, p95, p99",
-      "type": "graph",
-      "gridPos": {"x": 0, "y": 0, "w": 16, "h": 10},
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 10
+      },
       "targets": [
         {
           "expr": "histogram_quantile(0.50, rate(waf_request_duration_seconds_bucket[1m]))",
@@ -23,19 +32,8 @@
           "legendFormat": "p99"
         }
       ]
-    },
-    {
-      "id": 2,
-      "title": "Average Latency",
-      "type": "stat",
-      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 4},
-      "targets": [
-        {
-          "expr": "rate(waf_request_duration_seconds_sum[1m]) / rate(waf_request_duration_seconds_count[1m])",
-          "legendFormat": "avg ms"
-        }
-      ]
     }
   ],
+  "schemaVersion": 38,
   "version": 1
 }

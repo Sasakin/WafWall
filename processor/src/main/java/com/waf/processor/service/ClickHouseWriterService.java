@@ -27,18 +27,6 @@ public class ClickHouseWriterService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public void writeEvent(SecurityEvent event) {
-        if (enableAsync) {
-            CompletableFuture.runAsync(() -> doWriteEvent(event), executor)
-                .exceptionally(ex -> {
-                    log.error("Failed to write event: {}", ex.getMessage());
-                    return null;
-                });
-        } else {
-            doWriteEvent(event);
-        }
-    }
-
     public void writeEventsBatch(java.util.List<SecurityEvent> events) {
         if (events == null || events.isEmpty()) {
             return;
@@ -72,29 +60,6 @@ public class ClickHouseWriterService {
             log.debug("Wrote {} events to ClickHouse", events.size());
         } catch (Exception e) {
             log.error("Failed to write batch: {}", e.getMessage());
-        }
-    }
-
-    private void doWriteEvent(SecurityEvent event) {
-        String sql = "INSERT INTO security_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
-        try {
-            jdbcTemplate.update(sql,
-                event.getEventId(),
-                formatTimestamp(event.getTimestamp()),
-                event.getSourceIp(),
-                sanitize(event.getUserAgent()),
-                sanitize(event.getRequestPath()),
-                event.getRequestMethod(),
-                event.getThreatType().name(),
-                event.getThreatScore() != null ? event.getThreatScore() : 0,
-                event.getCountryCode() != null ? event.getCountryCode() : "XX",
-                event.getIsBlocked() ? 1 : 0,
-                event.getResponseTimeMs() != null ? event.getResponseTimeMs() : 0
-            );
-            log.debug("Wrote event {} to ClickHouse", event.getEventId());
-        } catch (Exception e) {
-            log.error("Failed to write event to ClickHouse: {}", e.getMessage());
         }
     }
 

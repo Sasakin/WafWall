@@ -1,5 +1,7 @@
 FROM grafana/grafana:latest
 
-RUN grafana plugins install grafana-clickhouse-datasource || true
+COPY scripts/install-clickhouse-plugin.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/install-clickhouse-plugin.sh && \
+    /usr/local/bin/install-clickhouse-plugin.sh || true
 
 EXPOSE 3000

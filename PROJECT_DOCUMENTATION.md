@@ -174,43 +174,16 @@ com.waf.processor
 
 ### 3.3 ClickHouse Storage
 
-**Технологии:** ClickHouse, JDBC Driver
+**Технологии:** ClickHouse, grafana-clickhouse-datasource plugin
 
-**Схема данных:**
-```sql
--- Таблица событий безопасности
-CREATE TABLE security_events (
-    event_id UUID,
-    timestamp DateTime64(3),
-    source_ip String,
-    user_agent String,
-    request_path String,
-    request_method String,
-    threat_type LowCardinality(String),
-    threat_score UInt8,
-    country_code LowCardinality(String),
-    is_blocked Boolean,
-    response_time_ms UInt32
-) ENGINE = MergeTree()
-PARTITION BY toYYYYMM(timestamp)
-ORDER BY (timestamp, source_ip, threat_type)
-TTL timestamp + INTERVAL 30 DAY;
+**Подключение к Grafana:**
+- URL: `http://clickhouse:9000`
+- Database: `security`
+- Plugin: `grafana-clickhouse-datasource`
 
--- Таблица агрегированной статистики
-CREATE TABLE hourly_stats MATERIALIZED VIEW security_events
-ENGINE = SummingMergeTree()
-PARTITION BY toYYYYMM(timestamp)
-ORDER BY (toStartOfHour(timestamp), threat_type, country_code)
-AS SELECT
-    toStartOfHour(timestamp) as timestamp,
-    threat_type,
-    country_code,
-    count() as total_requests,
-    sum(is_blocked) as blocked_requests,
-    avg(response_time_ms) as avg_response_time
-FROM security_events
-GROUP BY timestamp, threat_type, country_code;
-```
+**Дашборды Grafana (7 total):**
+- **Prometheus (01-04):** Traffic, Threats, Alerts, Latency
+- **ClickHouse (05-07):** Analytics, Top IPs, Performance
 
 ### 3.4 Alert Service
 
@@ -219,7 +192,7 @@ GROUP BY timestamp, threat_type, country_code;
 **Ответственность:**
 - Генерация алертов при превышении порогов
 - WebSocket push-уведомления в реальном времени
-- Интеграция с Telegram для уведомлений
+- Custom Web Dashboard (port 5000) для мониторинга
 - Управление IP blocklist
 
 **Структура:**
@@ -302,7 +275,7 @@ circuitbreaker:{service}:failures -> COUNTER
 2. Отправляет событие в Kafka topic: security.events
 3. Stream Processor агрегирует события по IP (окно 1 минута)
 4. Если порог превышен → Alert в Kafka topic: security.alerts
-5. Alert Service отправляет уведомление (WebSocket + Telegram)
+5. Alert Service отправляет уведомление (WebSocket → Custom Dashboard)
 6. IP добавляется в блок-лист Redis (TTL 1 час)
 ```
 
@@ -560,28 +533,9 @@ resilience4j.circuitbreaker:
 
 | Неделя | Задачи | Статус |
 |--------|--------|--------|
-| 9 | Telegram Bot, WebSocket push | 🔄 |
-| 10 | IP Blocklist в Redis, автоблокировка, Manual block/unblock API | 🔄 |
+| 9 | Alert Receiver, WebSocket UI | ✅ |
 
-### Фаза 5: Мониторинг и оптимизация
-
-| Неделя | Задачи | Статус |
-|--------|--------|--------|
-| 11 | Grafana дашборды, Alert rules в Prometheus | 🔄 |
-| 12 | JMeter скрипты, тест 100k+ RPS, оптимизация | ⏳ |
-
----
-
-## 10. Use Cases
-
-### 10.1 Акторы системы
-
-| Актор | Описание |
-|-------|----------|
-| **Клиент** | Любое приложение/пользователь, делающее HTTP-запросы к защищённому бэкенду |
-| **Security Admin** | Администратор безопасности, мониторит угрозы и настраивает правила |
-| **Backend Service** | Защищаемое приложение (социальная сеть или любой сервис) |
-| **Alert Recipient** | Получатель уведомлений об атаках (через Telegram, WebSocket) |
+| **Alert Recipient** | Получатель уведомлений об атаках (через WebSocket, Custom Dashboard) |
 
 ### 10.2 Основные Use Cases
 
@@ -656,7 +610,7 @@ wave-wall/
 │       ├── controller/        # AlertController
 │       └── config/           # Kafka, Redis, WebSocket конфигурация
 │
-├── tests/                     # Python тесты
+├── tests/                       # Python тесты
 │   ├── config.py             # Конфигурация тестов
 │   ├── conftest.py           # Pytest fixtures
 │   ├── test_waf_gateway.py   # Тесты WAF Gateway
