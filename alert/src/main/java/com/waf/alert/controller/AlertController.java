@@ -20,6 +20,14 @@ public class AlertController {
         this.blocklistService = blocklistService;
     }
 
+    @GetMapping("")
+    public ResponseEntity<Map<String, Object>> getAlerts() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("totalAlerts", alertService.getTotalAlerts());
+        response.put("recentStats", alertService.getAlertStats());
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getStats() {
         Map<String, Object> stats = new HashMap<>();

@@ -119,6 +119,10 @@ public class AlertService {
         return Map.copyOf(alertStats);
     }
 
+    public long getTotalAlerts() {
+        return totalProcessed.get();
+    }
+
     public void cleanup() {
         long cutoff = Instant.now().toEpochMilli() - (deduplicationWindowSeconds * 1000L);
         processedAlertIds.removeIf(id -> id.hashCode() < cutoff);

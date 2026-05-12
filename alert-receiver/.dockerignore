@@ -1,0 +1,15 @@
+.git
+.gitignore
+*.md
+docker-compose*.yml
+Dockerfile*
+nginx-lb/
+grafana/
+prometheus/
+backend/
+clickhouse-init/
+logs/
+*.log
+__pycache__/
+*.pyc
+.pytest_cache/

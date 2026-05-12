@@ -1,0 +1,108 @@
+{
+  "dashboard": {
+    "title": "WAF - Alert Service Monitor",
+    "tags": ["waf", "alerts", "security"],
+    "timezone": "browser",
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Alerts Received Rate",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(alerts_processed_total[1m])",
+            "legendFormat": "Alerts/sec"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Alerts by Threat Type",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(alerts_processed_total[1m])",
+            "legendFormat": "{{threat_type}}"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Total Alerts Processed",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 8, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "alerts_processed_total",
+            "legendFormat": "Total"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Auto-Blocked IPs",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 8, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "ips_auto_blocked_total",
+            "legendFormat": "Blocked"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Duplicate Alerts Skipped",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 8, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "alerts_duplicates_total",
+            "legendFormat": "Duplicates"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Telegram Notifications Sent",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 8, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "telegram_notifications_total",
+            "legendFormat": "Sent"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Blocklist Size (Redis)",
+        "type": "gauge",
+        "gridPos": {"x": 0, "y": 14, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "blocklist_size",
+            "legendFormat": "Blocked IPs"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Active Threat Counters",
+        "type": "timeseries",
+        "gridPos": {"x": 8, "y": 14, "w": 16, "h": 8},
+        "targets": [
+          {
+            "expr": "active_threat_counters",
+            "legendFormat": "{{source_ip}}"
+          }
+        ]
+      }
+    ],
+    "schemaVersion": 38,
+    "version": 1
+  }
+}

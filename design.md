@@ -43,7 +43,8 @@ WAF_System --> LB : Блокировка угроз (403)
 LB --> Client : 403/200
 Admin --> WAF_System : Управление правилами
 WAF_System --> CH : Аналитика событий
-CH --> Monitor : Метрики
+CH --> Monitor : Аналитические данные (для дашбордов)
+Prom --> CH : (экспортер метрик, опционально)
 WAF_System --> Monitor : Prometheus metrics
 Monitor --> Admin : Визуализация
 
@@ -73,7 +74,7 @@ end note
 | F8 | Whitelist | Управление IP whitelist для исключений |
 | F9 | Circuit Breaker | Защита backend от перегрузок |
 | F10 | GeoIP Enrichment | Определение страны по IP в аналитике |
-| F11 | Real-time Alerts | WebSocket и Telegram уведомления |
+| F11 | Real-time Alerts | WebSocket + Custom HTML Dashboard |
 | F12 | Kafka UI | Web-интерфейс для управления Kafka |
 
 ### Нефункциональные требования ⚡
@@ -314,7 +315,7 @@ package "Storage & Alerting" #FFEBEE {
   database "ClickHouse\n(OLAP, 30 days)" as CH
   component "Alert Service\n(Spring Boot)" as Alert
   component "Grafana" as External
-  component "Telegram Bot" as Telegram
+   component "Custom Alert Dashboard\n(HTML + WebSocket)" as Telegram
 }
 
 package "Backend Service" #E3F2FD {
@@ -342,7 +343,7 @@ Stream --> Kafka : Produce alerts
 ' === Алертинг ===
 Kafka --> Alert : Consume security.alerts
 Alert --> Redis : Update Blocklist (TTL)
-Alert --> Telegram : Push Notification
+Alert --> Telegram : Push Notification (WebSocket)
 Alert --> Alert : WebSocket broadcast
 
 ' === Мониторинг ===
@@ -615,8 +616,8 @@ LB -> Attacker : HTTP 403
 1. **Idempotent ключи в Kafka** — `alert_id = hash(IP + threat_type + window_start)`
 2. **Дедупликация на Consumer** — проверка `processed_alerts` set в Redis
 3. **TTL блок-листа** — автоматическая разблокировка, снижение нагрузки на админа
-4. **WebSocket broadcast** — real-time уведомления админам
-5. **Telegram notifications** — push уведомления в Telegram
+4. **WebSocket broadcast** — real-time уведомления админам (Custom HTML Dashboard)
+5. **Telegram notifications** — опционально, требует настройки токена бота
 
 ---
 

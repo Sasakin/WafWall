@@ -93,6 +93,26 @@ services:
       - redis
       - kafka
 
+  # ==================== Alert Receiver ====================
+
+  alert-receiver:
+    build:
+      context: .
+      dockerfile: Dockerfile.alert-receiver
+    container_name: waf-alert-receiver
+    environment:
+      - PYTHONUNBUFFERED=1
+      - WAF_ALERT_HOST=alert
+      - WAF_ALERT_PORT=8083
+    ports:
+      - "5000:5000"
+    volumes:
+      - alert-logs:/app/logs
+    networks:
+      - waf-network
+    depends_on:
+      - alert
+
   # ==================== Infrastructure ====================
   
   redis:
@@ -219,6 +239,8 @@ volumes:
   clickhouse-data:
   prometheus-data:
   grafana-data:
+  alert-logs:
+    driver: local
 
 networks:
   waf-network:
