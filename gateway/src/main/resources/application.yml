@@ -19,10 +19,10 @@ spring:
 waf:
   rate-limit:
     window-seconds: 60
-    max-requests: 100
+    max-requests: 1000
   bot:
     threshold: 30
-    frequency-threshold: 10
+    frequency-threshold: 1000
     js-challenge-enabled: false
     reputation-check-enabled: true
     header-analysis-enabled: true
@@ -57,5 +57,5 @@ management:
 
 logging:
   level:
-    com.waf: DEBUG
+    com.waf: WARN
     org.springframework: INFO

@@ -23,6 +23,10 @@ public class RateLimitFilter implements SecurityFilter {
 
     @Override
     public FilterResult check(HttpServletRequest request) {
+        // === OPTIMIZATION 1: Skip if already checked in WafFilter ===
+        if (Boolean.TRUE.equals(request.getAttribute("waf.ratelimit.checked"))) {
+            return pass();
+        }
         String clientIp = IpUtil.getClientIp(request);
         String path = request.getRequestURI();
 

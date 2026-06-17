@@ -1,8 +1,6 @@
 package com.waf.gateway.filter;
 
 import com.waf.gateway.service.ProxyService;
-import com.waf.gateway.service.WafService;
-import com.waf.gateway.util.IpUtil;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -15,11 +13,9 @@ import java.io.IOException;
 @Order(2)
 public class ProxyFilter implements Filter {
 
-    private final WafService wafService;
     private final ProxyService proxyService;
 
-    public ProxyFilter(WafService wafService, ProxyService proxyService) {
-        this.wafService = wafService;
+    public ProxyFilter(ProxyService proxyService) {
         this.proxyService = proxyService;
     }
 
@@ -29,16 +25,7 @@ public class ProxyFilter implements Filter {
         
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         HttpServletResponse httpResponse = (HttpServletResponse) response;
-
-        String clientIp = IpUtil.getClientIp(httpRequest);
         String path = httpRequest.getRequestURI();
-        String userAgent = httpRequest.getHeader("User-Agent");
-
-        wafService.processRequest(clientIp, path, userAgent, httpRequest, httpResponse);
-
-        if (httpResponse.getStatus() == 403) {
-            return;
-        }
 
         if (isLocalEndpoint(path)) {
             chain.doFilter(request, response);
