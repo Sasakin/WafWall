@@ -9,7 +9,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.UUID;
 
 @Service
 public class WafService {
@@ -55,7 +54,7 @@ public class WafService {
     private SecurityEvent buildEvent(String clientIp, String path, String userAgent,
                                     ThreatType threatType, boolean isBlocked, long startTime) {
         return SecurityEvent.builder()
-                .eventId(UUID.randomUUID().toString())
+                .eventId(BotDetectionService.generateEventId())
                 .timestamp(Instant.now())
                 .sourceIp(clientIp)
                 .userAgent(userAgent)
