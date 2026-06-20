@@ -35,6 +35,57 @@ def cleanup_redis(redis_client):
     redis_client.flushdb()
 
 
+@pytest.fixture(autouse=True, scope="function")
+def browser_user_agent():
+    """Patch requests.get/post to use browser User-Agent instead of python-requests.
+    
+    python-requests contains 'requests' string which is in KNOWN_BOTS list,
+    causing WAF to block all test requests as bots.
+    """
+    old_get = requests.get
+    old_post = requests.post
+    old_put = requests.put
+    old_delete = requests.delete
+
+    def patched_get(url, **kwargs):
+        headers = kwargs.setdefault('headers', {})
+        headers.setdefault('User-Agent', config.DEFAULT_HEADERS['User-Agent'])
+        headers.setdefault('Accept', config.DEFAULT_HEADERS['Accept'])
+        headers.setdefault('Accept-Language', config.DEFAULT_HEADERS['Accept-Language'])
+        kwargs.setdefault('timeout', config.TIMEOUT)
+        return old_get(url, **kwargs)
+
+    def patched_post(url, **kwargs):
+        headers = kwargs.setdefault('headers', {})
+        headers.setdefault('User-Agent', config.DEFAULT_HEADERS['User-Agent'])
+        headers.setdefault('Accept', config.DEFAULT_HEADERS['Accept'])
+        headers.setdefault('Accept-Language', config.DEFAULT_HEADERS['Accept-Language'])
+        kwargs.setdefault('timeout', config.TIMEOUT)
+        return old_post(url, **kwargs)
+
+    def patched_put(url, **kwargs):
+        headers = kwargs.setdefault('headers', {})
+        headers.setdefault('User-Agent', config.DEFAULT_HEADERS['User-Agent'])
+        kwargs.setdefault('timeout', config.TIMEOUT)
+        return old_put(url, **kwargs)
+
+    def patched_delete(url, **kwargs):
+        headers = kwargs.setdefault('headers', {})
+        headers.setdefault('User-Agent', config.DEFAULT_HEADERS['User-Agent'])
+        kwargs.setdefault('timeout', config.TIMEOUT)
+        return old_delete(url, **kwargs)
+
+    requests.get = patched_get
+    requests.post = patched_post
+    requests.put = patched_put
+    requests.delete = patched_delete
+    yield
+    requests.get = old_get
+    requests.post = old_post
+    requests.put = old_put
+    requests.delete = old_delete
+
+
 @pytest.fixture(scope="session")
 def check_services() -> dict:
     services = {}
