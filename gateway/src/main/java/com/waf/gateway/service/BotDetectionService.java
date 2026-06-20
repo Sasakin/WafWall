@@ -5,8 +5,11 @@ import com.waf.gateway.model.BotAnalysisResult;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -19,6 +22,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public class BotDetectionService {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final DefaultRedisScript botRecordScript;
 
     @Value("${waf.bot.threshold:70}")
     private int botThreshold;
@@ -66,8 +71,12 @@ public class BotDetectionService {
 
     private static final AtomicLong ID_COUNTER = new AtomicLong(0);
 
-    public BotDetectionService(RedisTemplate<String, Object> redisTemplate) {
+    public BotDetectionService(RedisTemplate<String, Object> redisTemplate,
+                               StringRedisTemplate stringRedisTemplate,
+                               @Qualifier("botRecordScript") DefaultRedisScript botRecordScript) {
         this.redisTemplate = redisTemplate;
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.botRecordScript = botRecordScript;
     }
 
     public static String generateEventId() {
@@ -94,7 +103,7 @@ public class BotDetectionService {
 
         analyzeIpReputation(ip, score);
         analyzeHeaders(request, score);
-        recordRequest(ip);
+        // recordRequest removed — now handled by recordAndGetRequestCount in analyzeFrequency
 
         log.debug("Bot detection for IP {}: score={}, isBot={}", ip, score.getTotalScore(), score.isBot());
 
@@ -143,7 +152,8 @@ public class BotDetectionService {
     }
 
     private void analyzeFrequency(String ip, BotScore score) {
-        int requestCount = getRequestCountLastMinute(ip);
+        // Combined record + count in single Lua roundtrip (was 2 separate Redis calls)
+        int requestCount = recordAndGetRequestCount(ip);
         
         if (requestCount > frequencyThreshold) {
             score.setFrequencyPenalty(PENALTY_HIGH_FREQUENCY);
@@ -255,28 +265,30 @@ public class BotDetectionService {
         }
     }
 
-    private int getRequestCountLastMinute(String ip) {
-        String key = "bot:requests:" + ip;
-        try {
-            Long count = redisTemplate.opsForZSet().zCard(key);
-            return count != null ? count.intValue() : 0;
-        } catch (Exception e) {
+    private int recordAndGetRequestCount(String ip) {
+        if (ip == null) {
             return 0;
         }
-    }
 
-    private void recordRequest(String ip) {
-        if (ip == null) {
-            return;
-        }
-        
         try {
             String key = "bot:requests:" + ip;
             long now = System.currentTimeMillis();
-            redisTemplate.opsForZSet().add(key, String.valueOf(now), now);
-            redisTemplate.expire(key, 1, TimeUnit.MINUTES);
+
+            // Single Lua script call replaces ZADD + EXPIRE + ZCARD (3 commands → 1 roundtrip)
+            Object raw = stringRedisTemplate.execute(
+                    botRecordScript,
+                    Collections.singletonList(key),
+                    String.valueOf(now)
+            );
+
+            if (raw instanceof List) {
+                List result = (List) raw;
+                return Integer.parseInt(result.get(0).toString());
+            }
+            return 0;
         } catch (Exception e) {
             log.debug("Error recording request: {}", e.getMessage());
+            return 0;
         }
     }
 
