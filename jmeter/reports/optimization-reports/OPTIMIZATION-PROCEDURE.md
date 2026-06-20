@@ -100,6 +100,28 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health
 # Expected: 200
 ```
 
+### Step 1.6a: Baseline Functional Tests
+
+Run functional tests to establish the baseline pass/fail state. All tests that pass on baseline must also pass on optimized version.
+
+```powershell
+cd tests
+python -m pytest test_waf_gateway.py -v --tb=short
+cd ..
+```
+
+Record the baseline results:
+```
+=== Baseline Functional Test Results ===
+Passed: X / 28
+Failed: Y (list each — these are expected pre-existing failures)
+```
+
+**Known pre-existing failures (not caused by code):**
+- `test_health_endpoint` — Kafka timeout in HealthController
+
+**All other tests must pass.** If they don't, the baseline itself is broken — fix before continuing.
+
 ### Step 1.7: Run JMeter — 3 Iterations
 
 ```powershell
@@ -238,20 +260,57 @@ Same as Phase 1, Step 1.5.
 
 Same as Phase 1, Step 1.6.
 
-### Step 4.5: Run JMeter — 3 Iterations
+### Step 4.5: Functional Tests (pytest)
+
+Run the functional test suite **while the gateway is still running** to verify correctness before measuring performance. Tests use `conftest.py` which auto-patches User-Agent to browser UA (avoids bot detection).
+
+```powershell
+# Run only the gateway test suite
+cd tests
+python -m pytest test_waf_gateway.py -v --tb=short
+cd ..
+```
+
+**Expected:** All tests pass except `test_health_endpoint` (known issue — Kafka timeout in health check, pre-existing).
+
+**If new tests fail that were previously passing → REVERT the optimization immediately.** Performance gains are meaningless if functionality is broken.
+
+Record the pass/fail counts:
+```
+=== Functional Test Results ===
+Passed: X / 28
+Failed: Y (list each failing test name)
+```
+
+**Common false failures (not caused by optimization):**
+- `test_health_endpoint` — Kafka timeout in HealthController, pre-existing
+- Any test with `assert response.status_code in [200, 403, 404]` — these pass even on regressions because they accept 403
+
+**Real failures to watch for:**
+- Rate limit tests (`test_rate_limit_*`) now returning different status codes
+- SQL/XSS injection tests (`test_sqli_*`, `test_xss_*`) no longer blocking malicious payloads
+- Bot detection tests (`test_bot_*`) now allowing known bots through
+- Proxy tests (`test_proxy_*`) returning 500 instead of 200/404/502
+
+### Step 4.6: Flush Redis + Run JMeter — 3 Iterations
+
+```powershell
+# Flush Redis before perf test
+docker exec waf-redis redis-cli FLUSHALL
+```
 
 Same as Phase 1, Step 1.7, but prefix output files with the optimization name:
 - `jmeter\results\<opt-name>-iter1-report`
 - `jmeter\results\<opt-name>-iter2-report`
 - `jmeter\results\<opt-name>-iter3-report`
 
-### Step 4.6: Stop Gateway
+### Step 4.7: Stop Gateway
 
 ```powershell
 taskkill /F /IM java.exe
 ```
 
-### Step 4.7: Extract Statistics
+### Step 4.8: Extract Statistics
 
 Same as Phase 1, Step 1.9, but with the optimization name prefix.
 
@@ -259,7 +318,21 @@ Same as Phase 1, Step 1.9, but with the optimization name prefix.
 
 ## Phase 5: Compare Results
 
-### Step 5.1: Side-by-Side Comparison
+### Step 5.1: Verify Functional Tests Passed
+
+Before comparing performance numbers, check the functional test results from Phase 4.5:
+
+| Functional Test | Baseline | After Optimization | Status |
+|----------------|----------|-------------------|--------|
+| test_rate_limit_* | ✅ | ? | |
+| test_sqli_* | ✅ | ? | |
+| test_xss_* | ✅ | ? | |
+| test_bot_* | ✅ | ? | |
+| test_proxy_* | ✅ | ? | |
+
+**If any functional test regressed → STOP. REVERT the optimization. Do not proceed to performance comparison.**
+
+### Step 5.2: Side-by-Side Performance Comparison
 
 | Metric | Baseline (avg iter 2+3) | Optimization (avg iter 2+3) | Delta | Winner |
 |--------|------------------------|---------------------------|-------|--------|
@@ -271,19 +344,21 @@ Same as Phase 1, Step 1.9, but with the optimization name prefix.
 | P99 | | | | |
 | Error Rate | | | | |
 
-### Step 5.2: Decision Criteria
+### Step 5.3: Decision Criteria
 
 **KEEP** the optimization if:
+- All functional tests pass (same as baseline)
 - RPS improved by **>2%** (beyond 5% noise floor, need clear signal)
 - OR Mean Latency improved by **>5%**
 - AND no metric regressed by more than **2%**
 
 **REVERT** if:
+- Any functional test regressed (correctness > performance)
 - Any metric regressed by **>2%**
 - OR no measurable improvement (delta within ±3% noise floor)
 - OR new bugs/errors introduced
 
-### Step 5.3: Statistical Significance
+### Step 5.4: Statistical Significance
 
 - Calculate variance between iter 2 and 3 for both baseline and optimization
 - If variance >5% for either, the test is unreliable — note this in the report
@@ -409,6 +484,9 @@ Stop when:
 | Build script | `gateway/build.gradle.kts` |
 | Dockerfile | `Dockerfile.gateway` |
 | Redis config | `RedisConfig.java` — `gateway/src/main/java/com/waf/gateway/config/` |
+| Functional tests | `tests/test_waf_gateway.py` |
+| Test config | `tests/config.py` — `DEFAULT_HEADERS` with browser UA |
+| Test fixtures | `tests/conftest.py` — auto-patches UA to avoid bot detection |
 
 ## Quick Reference: Key Services
 

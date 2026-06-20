@@ -24,3 +24,11 @@ PROXY_BACKEND_URL = os.getenv("PROXY_BACKEND_URL", "http://localhost:8081")
 TIMEOUT = 5
 RATE_LIMIT_WINDOW = 60
 RATE_LIMIT_MAX = 100
+
+# Browser User-Agent to avoid bot detection by WAF
+# Default python-requests UA contains "requests" which is in KNOWN_BOTS list
+DEFAULT_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
