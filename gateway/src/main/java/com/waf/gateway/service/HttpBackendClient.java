@@ -2,29 +2,52 @@ package com.waf.gateway.service;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.apache.hc.client5.http.classic.HttpClient;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+// === OPTIMIZATION 2: Connection pool + remove empty body ===
 @Component
 public class HttpBackendClient implements BackendClient {
 
     @Value("${waf.backend.url:http://localhost:8080}")
     private String backendUrl;
 
-    @Value("${waf.backend.timeout-ms:5000}")
+    @Value("${waf.backend.timeout-ms:2000}")
     private int timeoutMs;
 
     private final RestTemplate restTemplate;
 
     public HttpBackendClient() {
-        this.restTemplate = new RestTemplate();
+        // === OPTIMIZATION 2: Pooled connection manager ===
+        PoolingHttpClientConnectionManager connectionManager =
+            new PoolingHttpClientConnectionManager();
+        connectionManager.setMaxTotal(200);
+        connectionManager.setDefaultMaxPerRoute(100);
+        RequestConfig requestConfig = RequestConfig.custom()
+            .setConnectionRequestTimeout(Timeout.ofMilliseconds(timeoutMs))
+            .setResponseTimeout(Timeout.ofMilliseconds(timeoutMs))
+            .build();
+
+        HttpClient httpClient = HttpClients.custom()
+            .setConnectionManager(connectionManager)
+            .setDefaultRequestConfig(requestConfig)
+            .build();
+
+        this.restTemplate = new RestTemplate(
+            new HttpComponentsClientHttpRequestFactory(httpClient));
     }
 
     @Override
@@ -39,9 +62,14 @@ public class HttpBackendClient implements BackendClient {
         HttpHeaders headers = new HttpHeaders();
         copyHeaders(request, headers);
 
-        Map<String, String> body = new HashMap<>();
-
-        HttpEntity<Map<String, String>> httpRequest = new HttpEntity<>(body, headers);
+        // === OPTIMIZATION 7: null body instead of empty Map for GET requests ===
+        HttpEntity<?> httpRequest;
+        if ("GET".equalsIgnoreCase(request.getMethod()) ||
+            "HEAD".equalsIgnoreCase(request.getMethod())) {
+            httpRequest = new HttpEntity<>(headers);
+        } else {
+            httpRequest = new HttpEntity<>(headers);
+        }
 
         try {
             ResponseEntity<String> responseEntity = restTemplate.exchange(

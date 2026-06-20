@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @Slf4j
@@ -63,8 +64,16 @@ public class BotDetectionService {
             "76.", "77.", "78.", "79.", "8.", "80.", "81.", "82."
     );
 
+    private static final AtomicLong ID_COUNTER = new AtomicLong(0);
+
     public BotDetectionService(RedisTemplate<String, Object> redisTemplate) {
         this.redisTemplate = redisTemplate;
+    }
+
+    public static String generateEventId() {
+        long id = ID_COUNTER.incrementAndGet();
+        long time = System.currentTimeMillis();
+        return Long.toHexString(time) + "-" + Long.toHexString(id);
     }
 
     public BotScore analyzeBotBehavior(String ip, HttpServletRequest request) {

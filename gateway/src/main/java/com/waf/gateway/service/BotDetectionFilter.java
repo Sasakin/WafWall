@@ -36,11 +36,11 @@ public class BotDetectionFilter implements SecurityFilter {
         String clientIp = IpUtil.getClientIp(request);
         String userAgent = request.getHeader("User-Agent");
 
-        log.info("BotDetection: checking IP={}, UA={}", clientIp, userAgent);
+        log.debug("BotDetection: checking IP={}, UA={}", clientIp, userAgent);
 
         BotScore score = botDetectionService.analyzeBotBehavior(clientIp, request);
 
-        log.info("BotDetection: score={}, isBot={}, threshold=70", score.getTotalScore(), score.isBot());
+        log.debug("BotDetection: score={}, isBot={}, threshold=70", score.getTotalScore(), score.isBot());
 
         if (score.isBot()) {
             return block("Bot detected - score: " + score.getTotalScore());
