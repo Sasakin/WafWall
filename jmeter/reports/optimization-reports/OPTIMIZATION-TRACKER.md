@@ -1,8 +1,9 @@
 # Wave-Wall WAF Gateway — Optimization Tracker
 
-**Status:** V2 is the working baseline. All other optimizations were tested and failed or showed no measurable improvement.  
-**Baseline:** V2 (commit `7b2771d`) — AtomicLong ID generator, caller-owns-metadata  
-**Test Protocol:** JMeter 50 threads, 30s ramp-up, 60s, 3 iterations per version, statistics.json as source of truth  
+**Status:** V9-LuaScripts is the current best. V2 was baseline; V9 added +5.4% RPS, -49% max latency.
+**Baseline:** V2 (commit `7b2771d`) — AtomicLong ID generator, caller-owns-metadata
+**Current Best:** V9-LuaScripts (V2 + Redis Lua scripts) — 1,179 RPS, 32.0ms avg
+**Test Protocol:** JMeter 50 threads, 30s ramp-up, 60s, 3 iterations per version, statistics.json as source of truth
 **Environment:** Desktop Windows 10, Java 17, Docker Redis/Kafka/nginx backend
 
 ---
@@ -12,17 +13,18 @@
 | Version | What Changed | RPS | Mean Latency | Verdict |
 |---------|-------------|-----|-------------|---------|
 | **V1** | Gateway latency: header copy, URLDecoder dedup, metrics fix | 1,444 (GUI) | 19ms | ✅ **Keep** (in V2) |
-| **V2** | Fast ID generator: AtomicLong replacing UUID | **1,118** | **33.7ms** | ✅ **Current baseline** |
+| **V2** | Fast ID generator: AtomicLong replacing UUID | 1,118 | 33.7ms | ✅ **Keep** (baseline) |
 | **V3** | Java 21 + Virtual Threads + async Kafka | 1,052 | 38ms | ❌ **-23%** — virtual threads hurt |
 | **V4** | Local rate limit + gzip + nginx cache + Redis pipeline + try-catch | 480 | 79ms | ❌ **-57%** — REVERTED |
 | **V5** | Micro-optimizations: metrics fix, URLDecoder cache, header put() | ~1,118 | ~34ms | ⚠️ **0%** — bug fixes only |
 | **V6** | Redis StringSerializer for ZSet values | 1,103 | 34.2ms | ❌ **0%** — no improvement |
 | **V7** | JVM tuning: G1HeapRegionSize, IHOP, AlwaysPreTouch, CodeCache | 1,098 | 34.4ms | ❌ **-2%** — no improvement |
 | **V8** | Async proxy with CompletableFuture | — | — | ❌ **REVERTED** — no improvement |
+| **V9-LuaScripts** | Redis Lua scripts: rate limit + bot tracking | **1,179** | **32.0ms** | ✅ **+5.4% RPS, -49% max latency** |
 
 ### Bottom Line
 
-**V2 is the winner.** All other optimizations either hurt performance (V3, V4) or showed zero measurable improvement (V5, V6, V7, V8).
+**V9-LuaScripts is the current best.** V2 is the stable baseline. All other optimizations (V3-V8) either hurt performance or showed zero improvement.
 
 ---
 
@@ -53,6 +55,7 @@
 | URLDecoder dedup across filters | V1/V5 | Avoids double-decode of query string |
 | MetricsService double-count fix | V1/V5 | Corrects blocked request count |
 | AtomicLong ID generator | V2 | Eliminates UUID.randomUUID() overhead |
+| Redis Lua scripts (rate limit + bot tracking) | V9-LuaScripts | 8→3 Redis roundtrips per request, +5.4% RPS, -49% max latency |
 
 ---
 
@@ -62,8 +65,8 @@
 
 | Optimization | Expected Impact | Complexity | Notes |
 |-------------|----------------|-----------|-------|
-| **Redis Lua scripts** | +20-40% | Medium | Replace 4-5 separate Redis commands with single atomic Lua script. V4 tried pipeline (client-side batch) but it was bundled with broken changes that caused -57%. Lua is different: it executes atomically server-side in a single roundtrip. No inter-command network overhead |
 | **Connection pooling tuning** | +5-15% | Low | Redis Lettuce pool: max-active=50, max-idle=20, min-idle=10. Current defaults may be too conservative |
+| **Merge both Lua scripts into one** | +3-5% | Low | Combine rate_limit_check + bot_record_and_count into single Lua script. 3→2 roundtrips |
 | **Reactive/WebFlux rewrite** | +30-50% | High | Replace Tomcat servlet model with Netty event loop. Eliminates thread-per-request entirely |
 | **gRPC for backend proxy** | +15-25% | Medium | Replace HTTP proxy with gRPC (HTTP/2 multiplexing, protobuf serialization) |
 
@@ -99,12 +102,12 @@
 
 ## Key Lesson
 
-**Redis I/O is the bottleneck, not CPU or GC.** Every WAF request hits Redis 4-8 times (rate limit ZCARD+EXPIRE+ZADD+EXPIRE + bot tracking ZCARD+ZADD+EXPIRE + blacklist check). At 50 threads, Redis RTT dominates. JVM tuning, compression, async proxies — none of these help because the thread is blocked on Redis, not doing CPU work.
+**Redis I/O is the bottleneck, not CPU or GC.** Every WAF request hits Redis multiple times. Lua scripts proved that reducing roundtrips from 8 to 3 gives measurable improvement (+5.4% RPS, -49% max latency). Further reduction (merging both Lua scripts into one, or caching ip:reputation) could yield additional gains.
 
-**The only way to significantly improve performance is to reduce Redis roundtrips.** Lua scripts are the highest-ROI next step — they replace multiple commands with a single atomic execution on the Redis server, eliminating all inter-command network overhead. Pipeline (batching) was tested in V4 but bundled with broken changes; Lua is strictly superior to pipeline because it executes server-side, not client-side.
+**The optimization path that works: reduce Redis roundtrips. Everything else (JVM tuning, compression, async proxies) does not help because the thread is blocked on Redis, not doing CPU work.**
 
 ---
 
-**Report generated:** 2026-06-20  
-**Data source:** `statistics.json` from JMeter HTML reports  
-**Branches:** `v2` (baseline), `v4`/`v6`/`v7` (failed experiments)
+**Report generated:** 2026-06-20
+**Data source:** `statistics.json` from JMeter HTML reports
+**Branches:** `v2` (baseline), `opt/redis-lua-scripts` (V9), `v4`/`v6`/`v7` (failed experiments)
